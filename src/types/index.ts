@@ -8,6 +8,12 @@ export interface KeyValuePair {
   isSecret?: boolean;
 }
 
+export interface TestAssertionResult {
+  name: string;
+  passed: boolean;
+  error?: string;
+}
+
 export interface ApiRequest {
   id: string;
   name: string;
@@ -26,6 +32,9 @@ export interface ApiRequest {
     apiKeyValue?: string;
     addTo?: 'header' | 'query';
   };
+  preRequestScript?: string;
+  testScript?: string;
+  tests?: string;
   collectionId?: string;
 }
 
@@ -37,6 +46,8 @@ export interface ApiResponse {
   headers: Record<string, string>;
   data: any;
   timestamp: string;
+  testResults?: TestAssertionResult[];
+  consoleLogs?: string[];
 }
 
 export interface ColumnDefinition {

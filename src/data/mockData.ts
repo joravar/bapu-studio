@@ -18,7 +18,22 @@ export const INITIAL_COLLECTIONS: Collection[] = [
         bodyType: 'none',
         bodyContent: '',
         authType: 'bearer',
-        authConfig: { token: '{{AUTH_TOKEN}}' }
+        authConfig: { token: '{{AUTH_TOKEN}}' },
+        tests: `// 1. Status Code Verification
+test("Status code is 200 OK", () => {
+  expect(res.status).toBe(200);
+});
+
+// 2. Latency Threshold Check
+test("Response latency is fast (< 500ms)", () => {
+  expect(res.timeMs).toBeLessThan(500);
+});
+
+// 3. Response Structure & User Field Check
+test("Response contains valid user object", () => {
+  expect(res.data.status).toBe("success");
+  expect(res.data.user.id).toBeDefined();
+});`
       },
       {
         id: 'req-2',
@@ -36,7 +51,11 @@ export const INITIAL_COLLECTIONS: Collection[] = [
           expiresInDays: 90
         }, null, 2),
         authType: 'bearer',
-        authConfig: { token: '{{AUTH_TOKEN}}' }
+        authConfig: { token: '{{AUTH_TOKEN}}' },
+        tests: `test("Status code is 200 or 201", () => {
+  expect(res.status).toBeGreaterThan(199);
+  expect(res.status).toBeLessThan(300);
+});`
       }
     ]
   },

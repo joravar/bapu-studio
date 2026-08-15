@@ -235,6 +235,96 @@ test('Simulate MongoDB JSON document key extraction for dynamic table grid', () 
 });
 
 // ------------------------------------------------------------------------------
+// 5. POSTMAN SCRIPTING & ASSERTION ENGINE
+// ------------------------------------------------------------------------------
+console.log('\n--- 5. Testing Postman-Style Pre-Request & Test Scripting Engine ---');
+
+test('Pre-request script: evaluate pm.environment.set and console.log', () => {
+  const env = { id: 'env-1', name: 'Dev', variables: [{ key: 'API_URL', value: 'https://example.com', enabled: true }] };
+  const req = { id: 'r1', name: 'Test', method: 'GET', url: '{{API_URL}}/test', params: [], headers: [], bodyType: 'none', bodyContent: '', authType: 'none', authConfig: {} };
+  
+  const script = `
+    pm.environment.set("req_timestamp", "1720000000");
+    console.log("Pre-request executed successfully");
+  `;
+  
+  // Test evaluation
+  const updatedEnvVars = {};
+  const logs = [];
+  const pm = {
+    environment: {
+      set: (k, v) => { updatedEnvVars[k] = v; }
+    }
+  };
+  const customConsole = { log: (msg) => logs.push(msg) };
+  const fn = new Function('pm', 'console', script);
+  fn(pm, customConsole);
+
+  assert.strictEqual(updatedEnvVars.req_timestamp, "1720000000");
+  assert.strictEqual(logs[0], "Pre-request executed successfully");
+});
+
+test('Test script: evaluate pm.test, status assertions, and json body checks', () => {
+  const response = {
+    status: 200,
+    statusText: 'OK',
+    timeMs: 45,
+    headers: { 'content-type': 'application/json' },
+    data: { status: 'success', user: { id: 101, name: 'Alice' } }
+  };
+
+  const testResults = [];
+  const testFn = (name, cb) => {
+    try {
+      cb();
+      testResults.push({ name, passed: true });
+    } catch (e) {
+      testResults.push({ name, passed: false, error: e.message });
+    }
+  };
+
+  const pm = {
+    test: testFn,
+    expect: (actual) => ({
+      to: {
+        eql: (expected) => assert.deepStrictEqual(actual, expected),
+        be: { below: (max) => assert.ok(actual < max) }
+      }
+    }),
+    response: {
+      to: {
+        have: {
+          status: (code) => assert.strictEqual(response.status, code)
+        }
+      },
+      json: () => response.data,
+      responseTime: response.timeMs
+    }
+  };
+
+  const script = `
+    pm.test("Status is 200", function () {
+      pm.response.to.have.status(200);
+    });
+
+    pm.test("Response time < 200ms", function () {
+      pm.expect(pm.response.responseTime).to.be.below(200);
+    });
+
+    pm.test("Status is success", function () {
+      var data = pm.response.json();
+      pm.expect(data.status).to.eql("success");
+    });
+  `;
+
+  const runner = new Function('pm', script);
+  runner(pm);
+
+  assert.strictEqual(testResults.length, 3);
+  assert.strictEqual(testResults.every(t => t.passed), true);
+});
+
+// ------------------------------------------------------------------------------
 // SUMMARY
 // ------------------------------------------------------------------------------
 console.log('\n==============================================================================');

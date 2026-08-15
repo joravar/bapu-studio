@@ -13,10 +13,11 @@ import {
   Terminal,
   FileCode2
 } from 'lucide-react';
-import { ApiRequest, ApiResponse, Environment, HttpMethod, KeyValuePair } from '../../types';
+import { ApiRequest, ApiResponse, Environment, HttpMethod, KeyValuePair, TestAssertionResult } from '../../types';
 import { CodeSnippetModal } from './CodeSnippetModal';
 import { CurlImportModal } from './CurlImportModal';
 import { AiCopilotModal } from '../AiCopilot/AiCopilotModal';
+import { executePreRequestScript, executeTestScript } from '../../utils/scriptEngine';
 
 interface ApiStudioProps {
   activeRequest: ApiRequest;
@@ -24,17 +25,19 @@ interface ApiStudioProps {
   onUpdateRequest: (updated: ApiRequest) => void;
   onRecordHistory: (title: string, subtitle: string, status: number) => void;
   onDeleteRequest?: (requestId: string) => void;
+  onUpdateEnv?: (updatedEnv: Environment) => void;
 }
 
-type SubTab = 'params' | 'headers' | 'body' | 'auth';
-type ResponseSubTab = 'preview' | 'raw' | 'headers';
+type SubTab = 'params' | 'headers' | 'body' | 'auth' | 'prerequest' | 'tests';
+type ResponseSubTab = 'preview' | 'raw' | 'headers' | 'tests' | 'console';
 
 export const ApiStudio: React.FC<ApiStudioProps> = ({
   activeRequest,
   activeEnv,
   onUpdateRequest,
   onRecordHistory,
-  onDeleteRequest
+  onDeleteRequest,
+  onUpdateEnv
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('params');
   const [activeResTab, setActiveResTab] = useState<ResponseSubTab>('preview');
@@ -43,39 +46,45 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
   const [isCodeModalOpen, setIsCodeModalOpen] = useState(false);
   const [isCurlModalOpen, setIsCurlModalOpen] = useState(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-  const [response, setResponse] = useState<ApiResponse | null>({
-    status: 200,
-    statusText: 'OK',
-    timeMs: 42,
-    sizeBytes: 1240,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'no-cache',
-      'x-powered-by': 'Nexus-Core-Engine'
-    },
-    data: {
-      status: "success",
-      user: {
-        id: "usr_9982_x4",
-        name: "Alex Rivera",
-        email: "alex@developer.io",
-        role: "admin",
-        verified: true,
-        permissions: ["repo:read", "repo:write", "billing:admin"],
-        created_at: "2026-01-15T08:30:00.000Z"
+  const [response, setResponse] = useState<ApiResponse | null>(() => {
+    const initialRes: ApiResponse = {
+      status: 200,
+      statusText: 'OK',
+      timeMs: 42,
+      sizeBytes: 1240,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'cache-control': 'no-cache',
+        'x-powered-by': 'Nexus-Core-Engine'
       },
-      quota: {
-        api_calls_remaining: 99850,
-        reset_in_seconds: 3600
-      }
-    },
-    timestamp: new Date().toISOString()
+      data: {
+        status: "success",
+        user: {
+          id: "usr_9982_x4",
+          name: "Alex Rivera",
+          email: "alex@developer.io",
+          role: "admin",
+          verified: true,
+          permissions: ["repo:read", "repo:write", "billing:admin"],
+          created_at: "2026-01-15T08:30:00.000Z"
+        },
+        quota: {
+          api_calls_remaining: 99850,
+          reset_in_seconds: 3600
+        }
+      },
+      timestamp: new Date().toISOString()
+    };
+    const testExec = executeTestScript(activeRequest.testScript || activeRequest.tests || '', initialRes, activeRequest, activeEnv);
+    initialRes.testResults = testExec.testResults;
+    initialRes.consoleLogs = testExec.logs;
+    return initialRes;
   });
 
   // Resolve environment variables like {{API_BASE_URL}}
-  const resolveVariables = (input: string): string => {
+  const resolveVariables = (input: string, env: Environment): string => {
     let resolved = input;
-    activeEnv.variables.forEach(v => {
+    env.variables.forEach(v => {
       if (v.enabled) {
         resolved = resolved.replaceAll(`{{${v.key}}}`, v.value);
       }
@@ -86,9 +95,31 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
   const handleSend = async () => {
     setIsLoading(true);
     const startTime = performance.now();
-    const resolvedUrl = resolveVariables(activeRequest.url);
 
-    // Simulate native Tauri / fetch request execution
+    // 1. Execute Pre-request script
+    let currentEnv = { ...activeEnv };
+    let preLogs: string[] = [];
+    if (activeRequest.preRequestScript) {
+      const preResult = executePreRequestScript(activeRequest.preRequestScript, activeRequest, currentEnv);
+      preLogs = preResult.logs;
+      if (Object.keys(preResult.updatedEnvVars).length > 0) {
+        const newVars = [...currentEnv.variables];
+        Object.entries(preResult.updatedEnvVars).forEach(([k, val]) => {
+          const existing = newVars.find(v => v.key === k);
+          if (existing) {
+            existing.value = val;
+          } else {
+            newVars.push({ id: `var-${Date.now()}-${Math.random()}`, key: k, value: val, enabled: true });
+          }
+        });
+        currentEnv = { ...currentEnv, variables: newVars };
+        if (onUpdateEnv) onUpdateEnv(currentEnv);
+      }
+    }
+
+    const resolvedUrl = resolveVariables(activeRequest.url, currentEnv);
+
+    // 2. Execute HTTP call
     setTimeout(() => {
       const endTime = performance.now();
       const elapsed = Math.round(endTime - startTime);
@@ -99,7 +130,7 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
         request_details: {
           method: activeRequest.method,
           resolved_url: resolvedUrl,
-          environment: activeEnv.name,
+          environment: currentEnv.name,
           headers_sent: activeRequest.headers.filter(h => h.enabled).length
         }
       };
@@ -125,6 +156,31 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
         data: mockDataResponse,
         timestamp: new Date().toISOString()
       };
+
+      // 3. Execute Post-response Test script
+      const testExec = executeTestScript(
+        activeRequest.testScript || activeRequest.tests || '',
+        res,
+        activeRequest,
+        currentEnv
+      );
+
+      res.testResults = testExec.testResults;
+      res.consoleLogs = [...preLogs, ...testExec.logs];
+
+      if (Object.keys(testExec.updatedEnvVars).length > 0) {
+        const newVars = [...currentEnv.variables];
+        Object.entries(testExec.updatedEnvVars).forEach(([k, val]) => {
+          const existing = newVars.find(v => v.key === k);
+          if (existing) {
+            existing.value = val;
+          } else {
+            newVars.push({ id: `var-${Date.now()}-${Math.random()}`, key: k, value: val, enabled: true });
+          }
+        });
+        currentEnv = { ...currentEnv, variables: newVars };
+        if (onUpdateEnv) onUpdateEnv(currentEnv);
+      }
 
       setResponse(res);
       setIsLoading(false);
@@ -274,6 +330,20 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
               >
                 Auth
               </button>
+              <button 
+                className={`subtab-btn ${activeSubTab === 'prerequest' ? 'active' : ''}`}
+                onClick={() => setActiveSubTab('prerequest')}
+                style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                <span>⚡ Pre-request</span>
+              </button>
+              <button 
+                className={`subtab-btn ${activeSubTab === 'tests' ? 'active' : ''}`}
+                onClick={() => setActiveSubTab('tests')}
+                style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                <span>🧪 Tests</span>
+              </button>
             </div>
 
             {activeSubTab === 'params' && (
@@ -389,7 +459,7 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
                             updated[idx].key = e.target.value;
                             onUpdateRequest({ ...activeRequest, headers: updated });
                           }}
-                          placeholder="Header Name"
+                          placeholder="Header name"
                           className="kv-input"
                         />
                       </td>
@@ -402,7 +472,7 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
                             updated[idx].value = e.target.value;
                             onUpdateRequest({ ...activeRequest, headers: updated });
                           }}
-                          placeholder="Value"
+                          placeholder="Header value"
                           className="kv-input"
                         />
                       </td>
@@ -425,29 +495,49 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
 
             {activeSubTab === 'body' && (
               <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Format:</span>
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-primary)', fontFamily: 'var(--font-mono)' }}>JSON (application/json)</span>
+                <div style={{ display: 'flex', gap: '12px', padding: '8px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
+                  {(['none', 'json', 'form', 'raw'] as const).map(bt => (
+                    <label key={bt} style={{ fontSize: '11px', color: activeRequest.bodyType === bt ? 'var(--text-main)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                      <input 
+                        type="radio" 
+                        name="bodyType" 
+                        checked={activeRequest.bodyType === bt}
+                        onChange={() => onUpdateRequest({ ...activeRequest, bodyType: bt })}
+                      />
+                      {bt.toUpperCase()}
+                    </label>
+                  ))}
                 </div>
-                <textarea
-                  value={activeRequest.bodyContent}
-                  onChange={(e) => onUpdateRequest({ ...activeRequest, bodyContent: e.target.value, bodyType: 'json' })}
-                  placeholder={'{\n  "key": "value"\n}'}
-                  className="code-textarea"
-                  spellCheck={false}
-                />
+                {activeRequest.bodyType !== 'none' && (
+                  <textarea
+                    value={activeRequest.bodyContent}
+                    onChange={(e) => onUpdateRequest({ ...activeRequest, bodyContent: e.target.value })}
+                    placeholder="Enter JSON or raw request payload..."
+                    style={{
+                      flex: 1,
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-main)',
+                      padding: '12px',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '12px',
+                      resize: 'none',
+                      outline: 'none'
+                    }}
+                  />
+                )}
               </div>
             )}
 
             {activeSubTab === 'auth' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div>
+              <div style={{ padding: '16px' }}>
+                <div style={{ marginBottom: '16px' }}>
                   <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>Auth Type</label>
                   <select
                     value={activeRequest.authType}
                     onChange={(e) => onUpdateRequest({ ...activeRequest, authType: e.target.value as any })}
-                    className="method-select-dropdown"
-                    style={{ width: '100%' }}
+                    className="kv-input"
+                    style={{ width: '200px' }}
                   >
                     <option value="none">No Auth</option>
                     <option value="bearer">Bearer Token</option>
@@ -471,6 +561,135 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
                     />
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Pre-Request Script Editor */}
+            {activeSubTab === 'prerequest' && (
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', background: 'rgba(59, 130, 246, 0.05)', borderBottom: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)', marginRight: '6px' }}>Snippets:</span>
+                  <button 
+                    onClick={() => {
+                      const cur = activeRequest.preRequestScript || '';
+                      const snippet = `pm.environment.set("timestamp", Date.now());\n`;
+                      onUpdateRequest({ ...activeRequest, preRequestScript: cur + snippet });
+                    }}
+                    className="btn-secondary"
+                    style={{ fontSize: '10px', padding: '2px 6px' }}
+                  >
+                    + Set Timestamp
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const cur = activeRequest.preRequestScript || '';
+                      const snippet = `pm.environment.set("req_id", "req_" + Math.random().toString(36).substring(2, 9));\n`;
+                      onUpdateRequest({ ...activeRequest, preRequestScript: cur + snippet });
+                    }}
+                    className="btn-secondary"
+                    style={{ fontSize: '10px', padding: '2px 6px' }}
+                  >
+                    + Set Dynamic ID
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const cur = activeRequest.preRequestScript || '';
+                      const snippet = `console.log("Preparing to send request to: " + pm.request.url);\n`;
+                      onUpdateRequest({ ...activeRequest, preRequestScript: cur + snippet });
+                    }}
+                    className="btn-secondary"
+                    style={{ fontSize: '10px', padding: '2px 6px' }}
+                  >
+                    + Log to Console
+                  </button>
+                </div>
+                <textarea
+                  value={activeRequest.preRequestScript || ''}
+                  onChange={(e) => onUpdateRequest({ ...activeRequest, preRequestScript: e.target.value })}
+                  placeholder="// Pre-request JavaScript (Runs before request is sent)&#10;pm.environment.set('req_timestamp', Date.now());&#10;console.log('Sending request...');"
+                  style={{
+                    flex: 1,
+                    background: '#090d14',
+                    border: 'none',
+                    color: '#60a5fa',
+                    padding: '12px',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '12px',
+                    lineHeight: '1.6',
+                    resize: 'none',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Postman Tests & Post-Response Script Editor */}
+            {activeSubTab === 'tests' && (
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', background: 'rgba(16, 185, 129, 0.05)', borderBottom: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)', marginRight: '6px' }}>Postman Snippets:</span>
+                  <button 
+                    onClick={() => {
+                      const cur = activeRequest.testScript || activeRequest.tests || '';
+                      const snippet = `pm.test("Status code is 200", function () {\n  pm.response.to.have.status(200);\n});\n\n`;
+                      onUpdateRequest({ ...activeRequest, testScript: cur + snippet, tests: cur + snippet });
+                    }}
+                    className="btn-secondary"
+                    style={{ fontSize: '10px', padding: '2px 6px' }}
+                  >
+                    + Status: 200
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const cur = activeRequest.testScript || activeRequest.tests || '';
+                      const snippet = `pm.test("Response time is less than 500ms", function () {\n  pm.expect(pm.response.responseTime).to.be.below(500);\n});\n\n`;
+                      onUpdateRequest({ ...activeRequest, testScript: cur + snippet, tests: cur + snippet });
+                    }}
+                    className="btn-secondary"
+                    style={{ fontSize: '10px', padding: '2px 6px' }}
+                  >
+                    + Latency &lt; 500ms
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const cur = activeRequest.testScript || activeRequest.tests || '';
+                      const snippet = `pm.test("Status property is success", function () {\n  var jsonData = pm.response.json();\n  pm.expect(jsonData.status).to.eql("success");\n});\n\n`;
+                      onUpdateRequest({ ...activeRequest, testScript: cur + snippet, tests: cur + snippet });
+                    }}
+                    className="btn-secondary"
+                    style={{ fontSize: '10px', padding: '2px 6px' }}
+                  >
+                    + JSON Value Check
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const cur = activeRequest.testScript || activeRequest.tests || '';
+                      const snippet = `var jsonData = pm.response.json();\nif (jsonData.token) {\n  pm.environment.set("AUTH_TOKEN", jsonData.token);\n  console.log("Extracted AUTH_TOKEN to environment");\n}\n\n`;
+                      onUpdateRequest({ ...activeRequest, testScript: cur + snippet, tests: cur + snippet });
+                    }}
+                    className="btn-secondary"
+                    style={{ fontSize: '10px', padding: '2px 6px' }}
+                  >
+                    + Extract Token to Env
+                  </button>
+                </div>
+                <textarea
+                  value={activeRequest.testScript || activeRequest.tests || ''}
+                  onChange={(e) => onUpdateRequest({ ...activeRequest, testScript: e.target.value, tests: e.target.value })}
+                  placeholder="// Post-response Postman JavaScript test assertions&#10;pm.test('Status code is 200', function () {&#10;  pm.response.to.have.status(200);&#10;});&#10;&#10;pm.test('Response time is fast', function () {&#10;  pm.expect(pm.response.responseTime).to.be.below(500);&#10;});"
+                  style={{
+                    flex: 1,
+                    background: '#090d14',
+                    border: 'none',
+                    color: '#34d399',
+                    padding: '12px',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '12px',
+                    lineHeight: '1.6',
+                    resize: 'none',
+                    outline: 'none'
+                  }}
+                />
               </div>
             )}
           </div>
@@ -497,6 +716,44 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
                 onClick={() => setActiveResTab('headers')}
               >
                 Headers
+              </button>
+              <button 
+                className={`subtab-btn ${activeResTab === 'tests' ? 'active' : ''}`}
+                onClick={() => setActiveResTab('tests')}
+                style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                <span>🧪 Tests</span>
+                {response?.testResults && response.testResults.length > 0 && (
+                  <span style={{
+                    fontSize: '10px',
+                    padding: '1px 5px',
+                    borderRadius: '4px',
+                    background: response.testResults.every(t => t.passed) ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                    color: response.testResults.every(t => t.passed) ? '#34d399' : '#f87171',
+                    fontWeight: 700
+                  }}>
+                    {response.testResults.filter(t => t.passed).length}/{response.testResults.length}
+                  </span>
+                )}
+              </button>
+              <button 
+                className={`subtab-btn ${activeResTab === 'console' ? 'active' : ''}`}
+                onClick={() => setActiveResTab('console')}
+              >
+                <span>💻 Console</span>
+                {response?.consoleLogs && response.consoleLogs.length > 0 && (
+                  <span style={{
+                    fontSize: '10px',
+                    padding: '1px 5px',
+                    borderRadius: '4px',
+                    background: 'rgba(59, 130, 246, 0.2)',
+                    color: '#60a5fa',
+                    fontWeight: 700,
+                    marginLeft: '4px'
+                  }}>
+                    {response.consoleLogs.length}
+                  </span>
+                )}
               </button>
             </div>
 
@@ -533,7 +790,7 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
                 }}>
                   {typeof response.data === 'string' ? response.data : JSON.stringify(response.data)}
                 </pre>
-              ) : (
+              ) : activeResTab === 'headers' ? (
                 <table className="kv-table">
                   <thead>
                     <tr>
@@ -550,6 +807,126 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
                     ))}
                   </tbody>
                 </table>
+              ) : activeResTab === 'tests' ? (
+                <div style={{ padding: '16px' }}>
+                  {response.testResults && response.testResults.length > 0 ? (
+                    <div>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        borderRadius: 'var(--radius-sm)',
+                        background: response.testResults.every(t => t.passed) ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                        border: `1px solid ${response.testResults.every(t => t.passed) ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                        marginBottom: '16px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '16px' }}>{response.testResults.every(t => t.passed) ? '✅' : '⚠️'}</span>
+                          <span style={{ fontWeight: 700, fontSize: '13px', color: response.testResults.every(t => t.passed) ? '#34d399' : '#f87171' }}>
+                            {response.testResults.filter(t => t.passed).length} of {response.testResults.length} assertions passed
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+                          {response.timeMs}ms
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {response.testResults.map((t, idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              padding: '10px 14px',
+                              background: '#0d1117',
+                              border: '1px solid var(--border-subtle)',
+                              borderRadius: 'var(--radius-sm)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '4px'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{
+                                width: '18px',
+                                height: '18px',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                background: t.passed ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                                color: t.passed ? '#34d399' : '#f87171'
+                              }}>
+                                {t.passed ? '✓' : '✗'}
+                              </span>
+                              <span style={{ fontSize: '12px', fontWeight: 600, color: t.passed ? 'var(--text-main)' : '#f87171' }}>
+                                {t.name}
+                              </span>
+                              <span style={{ marginLeft: 'auto', fontSize: '10px', color: t.passed ? '#34d399' : '#f87171', fontWeight: 700 }}>
+                                {t.passed ? 'PASS' : 'FAIL'}
+                              </span>
+                            </div>
+                            {t.error && (
+                              <div style={{
+                                marginTop: '4px',
+                                padding: '6px 10px',
+                                background: 'rgba(239, 68, 68, 0.08)',
+                                borderLeft: '2px solid #ef4444',
+                                fontSize: '11px',
+                                color: '#fca5a5',
+                                fontFamily: 'var(--font-mono)'
+                              }}>
+                                {t.error}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)' }}>
+                      <p style={{ fontSize: '13px', marginBottom: '8px' }}>No tests or assertions configured for this request.</p>
+                      <button
+                        onClick={() => setActiveSubTab('tests')}
+                        className="btn-secondary"
+                        style={{ fontSize: '11px' }}
+                      >
+                        Open Tests Tab to Add Assertions
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Console Log Viewer */
+                <div style={{ padding: '16px', fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
+                  {response.consoleLogs && response.consoleLogs.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {response.consoleLogs.map((log, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            padding: '6px 10px',
+                            background: '#0d1117',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: '4px',
+                            color: log.includes('[ERROR]') ? '#f87171' : (log.includes('[WARN]') ? '#fbbf24' : '#38bdf8'),
+                            whiteSpace: 'pre-wrap'
+                          }}
+                        >
+                          <span style={{ color: 'var(--text-dim)', marginRight: '8px', fontSize: '10px' }}>&gt;</span>
+                          {log}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)' }}>
+                      <p style={{ fontSize: '13px' }}>No console logs recorded.</p>
+                      <p style={{ fontSize: '11px', marginTop: '4px' }}>Use <code>console.log(...)</code> inside your Pre-request or Test scripts to log values here.</p>
+                    </div>
+                  )}
+                </div>
               )
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-dim)' }}>
