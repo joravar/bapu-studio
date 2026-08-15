@@ -1,0 +1,357 @@
+import React, { useState } from 'react';
+import { 
+  Globe, 
+  Database, 
+  KeyRound, 
+  History, 
+  FolderPlus, 
+  Plus, 
+  ChevronRight, 
+  ChevronDown,
+  Folder, 
+  Trash2,
+  HardDrive,
+  Radio
+} from 'lucide-react';
+import { Collection, ApiRequest, DatabaseConnection, HistoryItem } from '../types';
+import { NewCollectionModal } from './ApiStudio/NewCollectionModal';
+import { NewConnectionModal } from './DatabaseStudio/NewConnectionModal';
+
+export type WorkspaceTab = 'api' | 'db' | 'streams' | 'secrets' | 'history';
+
+interface SidebarProps {
+  activeTab: WorkspaceTab;
+  onTabChange: (tab: WorkspaceTab) => void;
+  collections: Collection[];
+  activeRequest: ApiRequest | null;
+  onSelectRequest: (req: ApiRequest) => void;
+  onNewRequest: () => void;
+  onAddCollection: (name: string) => void;
+  onDeleteCollection: (collectionId: string) => void;
+  onNewRequestInCollection: (collectionId: string) => void;
+  onDeleteRequest: (requestId: string) => void;
+  databases: DatabaseConnection[];
+  activeDb: DatabaseConnection | null;
+  onSelectDb: (db: DatabaseConnection) => void;
+  onAddDatabase: (db: DatabaseConnection) => void;
+  onDeleteDatabase: (dbId: string) => void;
+  history: HistoryItem[];
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({
+  activeTab,
+  onTabChange,
+  collections,
+  activeRequest,
+  onSelectRequest,
+  onNewRequest,
+  onAddCollection,
+  onDeleteCollection,
+  onNewRequestInCollection,
+  onDeleteRequest,
+  databases,
+  activeDb,
+  onSelectDb,
+  onAddDatabase,
+  onDeleteDatabase,
+  history
+}) => {
+  const [isNewColModalOpen, setIsNewColModalOpen] = useState(false);
+  const [isNewDbModalOpen, setIsNewDbModalOpen] = useState(false);
+  const [collapsedCols, setCollapsedCols] = useState<Record<string, boolean>>({});
+
+  const toggleCollapse = (id: string) => {
+    setCollapsedCols(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  return (
+    <aside className="nexus-sidebar">
+      {/* Top Engine Navigation Tabs */}
+      <div className="sidebar-nav-tabs">
+        <button
+          className={`sidebar-nav-tab ${activeTab === 'api' ? 'active' : ''}`}
+          onClick={() => onTabChange('api')}
+          title="API Client Studio"
+        >
+          <Globe size={15} />
+          <span>APIs</span>
+        </button>
+
+        <button
+          className={`sidebar-nav-tab ${activeTab === 'db' ? 'active' : ''}`}
+          onClick={() => onTabChange('db')}
+          title="SQL & Database Studio"
+        >
+          <Database size={15} />
+          <span>Databases</span>
+        </button>
+
+        <button
+          className={`sidebar-nav-tab ${activeTab === 'streams' ? 'active' : ''}`}
+          onClick={() => onTabChange('streams')}
+          title="Real-Time WebSocket & AI Stream Studio"
+        >
+          <Radio size={15} />
+          <span>Streams</span>
+        </button>
+
+        <button
+          className={`sidebar-nav-tab ${activeTab === 'secrets' ? 'active' : ''}`}
+          onClick={() => onTabChange('secrets')}
+          title="Secrets & Environment Vault"
+        >
+          <KeyRound size={15} />
+          <span>Secrets</span>
+        </button>
+
+        <button
+          className={`sidebar-nav-tab ${activeTab === 'history' ? 'active' : ''}`}
+          onClick={() => onTabChange('history')}
+          title="Request & Query History"
+        >
+          <History size={15} />
+          <span>History</span>
+        </button>
+      </div>
+
+      {/* Dynamic Sidebar Content */}
+      <div className="sidebar-content">
+        {activeTab === 'api' && (
+          <div>
+            <div className="sidebar-section-header">
+              <span>Collections ({collections.length})</span>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <button 
+                  onClick={onNewRequest} 
+                  className="sidebar-action-btn" 
+                  title="New HTTP Request"
+                >
+                  <Plus size={14} />
+                </button>
+                <button 
+                  onClick={() => setIsNewColModalOpen(true)}
+                  className="sidebar-action-btn" 
+                  title="Create New Collection Folder"
+                >
+                  <FolderPlus size={14} color="#60a5fa" />
+                </button>
+              </div>
+            </div>
+
+            {collections.map(col => {
+              const isCollapsed = !!collapsedCols[col.id];
+              return (
+                <div key={col.id} style={{ marginBottom: '10px' }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '4px 6px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: 'var(--text-muted)'
+                  }}>
+                    <div 
+                      onClick={() => toggleCollapse(col.id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', flex: 1, overflow: 'hidden' }}
+                    >
+                      {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                      <Folder size={14} color="#60a5fa" />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {col.name}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <button
+                        onClick={() => onNewRequestInCollection(col.id)}
+                        className="sidebar-action-btn"
+                        title={`Add Request to ${col.name}`}
+                      >
+                        <Plus size={12} />
+                      </button>
+                      {collections.length > 1 && (
+                        <button
+                          onClick={() => {
+                            if (confirm(`Delete collection "${col.name}"?`)) {
+                              onDeleteCollection(col.id);
+                            }
+                          }}
+                          className="sidebar-action-btn"
+                          title="Delete Collection"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {!isCollapsed && (
+                    <div style={{ paddingLeft: '14px', marginTop: '2px' }}>
+                      {col.requests.length === 0 ? (
+                        <div style={{ fontSize: '11px', color: 'var(--text-dim)', padding: '4px 8px' }}>
+                          No requests yet. Click + above.
+                        </div>
+                      ) : (
+                        col.requests.map(req => {
+                          const isSelected = activeRequest?.id === req.id;
+                          return (
+                            <div
+                              key={req.id}
+                              className={`sidebar-item ${isSelected ? 'active' : ''}`}
+                              onClick={() => onSelectRequest(req)}
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                            >
+                              <div className="sidebar-item-left" style={{ flex: 1, minWidth: 0 }}>
+                                <span className={`method-pill method-${req.method}`}>{req.method}</span>
+                                <span style={{ fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {req.name}
+                                </span>
+                              </div>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (confirm(`Delete request "${req.name}"?`)) {
+                                    onDeleteRequest(req.id);
+                                  }
+                                }}
+                                className="sidebar-action-btn"
+                                title="Delete Request"
+                                style={{ opacity: isSelected ? 1 : 0.6 }}
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {activeTab === 'db' && (
+          <div>
+            <div className="sidebar-section-header">
+              <span>Connected Drivers ({databases.length})</span>
+              <button 
+                onClick={() => setIsNewDbModalOpen(true)}
+                className="sidebar-action-btn" 
+                title="Add Database Connection"
+              >
+                <Plus size={14} color="#10b981" />
+              </button>
+            </div>
+
+            {databases.map(db => {
+              const isSelected = activeDb?.id === db.id;
+              return (
+                <div
+                  key={db.id}
+                  className={`sidebar-item ${isSelected ? 'active' : ''}`}
+                  onClick={() => onSelectDb(db)}
+                  style={{ padding: '8px', marginBottom: '6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                >
+                  <div className="sidebar-item-left">
+                    <HardDrive size={14} color={db.isConnected ? '#10b981' : '#64748b'} />
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: 600 }}>{db.name}</div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+                        {db.type.toUpperCase()} • {db.database}
+                      </div>
+                    </div>
+                  </div>
+
+                  {databases.length > 1 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`Remove database connection "${db.name}"?`)) {
+                          onDeleteDatabase(db.id);
+                        }
+                      }}
+                      className="sidebar-action-btn"
+                      title="Remove Connection"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {activeTab === 'secrets' && (
+          <div>
+            <div className="sidebar-section-header">
+              <span>Environment Scopes</span>
+            </div>
+            <div style={{ color: 'var(--text-dim)', fontSize: '11px', padding: '6px' }}>
+              Variables & secrets are stored locally in plain Git-versioned <code>.env</code> files or encrypted with OS Keyring.
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'history' && (
+          <div>
+            <div className="sidebar-section-header">
+              <span>Recent Activity</span>
+              <button className="sidebar-action-btn" title="Clear History">
+                <Trash2 size={13} />
+              </button>
+            </div>
+
+            {history.map(item => (
+              <div key={item.id} className="sidebar-item" style={{ padding: '6px 8px' }}>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-main)' }}>
+                    {item.title}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '2px' }}>
+                    {item.subtitle} • {item.timestamp}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Footer Info */}
+      <div style={{
+        padding: '10px 12px',
+        borderTop: '1px solid var(--border-subtle)',
+        fontSize: '11px',
+        color: 'var(--text-dim)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
+      }}>
+        <span>RAM: <strong>28.4 MB</strong></span>
+        <span>v1.0.0-oss</span>
+      </div>
+
+      {/* New Collection Modal */}
+      <NewCollectionModal
+        isOpen={isNewColModalOpen}
+        onClose={() => setIsNewColModalOpen(false)}
+        onCreate={onAddCollection}
+      />
+
+      {/* New Database Connection Modal */}
+      <NewConnectionModal
+        isOpen={isNewDbModalOpen}
+        onClose={() => setIsNewDbModalOpen(false)}
+        onConnect={(newDb) => {
+          onAddDatabase(newDb);
+        }}
+      />
+    </aside>
+  );
+};
