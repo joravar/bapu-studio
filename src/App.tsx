@@ -448,6 +448,10 @@ export const App: React.FC = () => {
                 onUpdateRequest={handleUpdateRequest}
                 onRecordHistory={handleRecordHistory}
                 onDeleteRequest={handleDeleteRequest}
+                onUpdateEnv={(updatedEnv) => {
+                  setEnvironments(prev => prev.map(e => e.id === updatedEnv.id ? updatedEnv : e));
+                  setActiveEnv(updatedEnv);
+                }}
               />
             )}
 

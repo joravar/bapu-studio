@@ -144,11 +144,19 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
       if (Object.keys(preResult.updatedEnvVars).length > 0) {
         const newVars = [...currentEnv.variables];
         Object.entries(preResult.updatedEnvVars).forEach(([k, val]) => {
+          const isSecret = /token|secret|key|auth|password|jwt|bearer/i.test(k);
           const existing = newVars.find(v => v.key === k);
           if (existing) {
             existing.value = val;
+            if (isSecret) existing.isSecret = true;
           } else {
-            newVars.push({ id: `var-${Date.now()}-${Math.random()}`, key: k, value: val, enabled: true });
+            newVars.push({
+              id: `var-${Date.now()}-${Math.random()}`,
+              key: k,
+              value: val,
+              enabled: true,
+              isSecret: isSecret
+            });
           }
         });
         currentEnv = { ...currentEnv, variables: newVars };
@@ -210,11 +218,19 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
       if (Object.keys(testExec.updatedEnvVars).length > 0) {
         const newVars = [...currentEnv.variables];
         Object.entries(testExec.updatedEnvVars).forEach(([k, val]) => {
+          const isSecret = /token|secret|key|auth|password|jwt|bearer/i.test(k);
           const existing = newVars.find(v => v.key === k);
           if (existing) {
             existing.value = val;
+            if (isSecret) existing.isSecret = true;
           } else {
-            newVars.push({ id: `var-${Date.now()}-${Math.random()}`, key: k, value: val, enabled: true });
+            newVars.push({
+              id: `var-${Date.now()}-${Math.random()}`,
+              key: k,
+              value: val,
+              enabled: true,
+              isSecret: isSecret
+            });
           }
         });
         currentEnv = { ...currentEnv, variables: newVars };

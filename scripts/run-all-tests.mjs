@@ -570,6 +570,46 @@ test('Renaming: update database connection driver title', () => {
   assert.strictEqual(databases[1].name, 'Prod Mongo');
 });
 
+test('Dynamic Variable: propagate bapu.env.set into environment secrets matrix', () => {
+  let activeEnv = {
+    id: 'env-dev',
+    name: 'Development',
+    variables: [
+      { id: 'v1', key: 'API_URL', value: 'https://api.example.com', enabled: true, isSecret: false }
+    ]
+  };
+
+  const updatedEnvVars = {
+    AUTH_TOKEN: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9',
+    TENANT_ID: 'tenant_9981'
+  };
+
+  const newVars = [...activeEnv.variables];
+  Object.entries(updatedEnvVars).forEach(([k, val]) => {
+    const isSecret = /token|secret|key|auth|password|jwt|bearer/i.test(k);
+    const existing = newVars.find(v => v.key === k);
+    if (existing) {
+      existing.value = val;
+      if (isSecret) existing.isSecret = true;
+    } else {
+      newVars.push({
+        id: `var-${Date.now()}-${Math.random()}`,
+        key: k,
+        value: val,
+        enabled: true,
+        isSecret: isSecret
+      });
+    }
+  });
+  activeEnv = { ...activeEnv, variables: newVars };
+
+  assert.strictEqual(activeEnv.variables.length, 3);
+  const tokenVar = activeEnv.variables.find(v => v.key === 'AUTH_TOKEN');
+  assert.ok(tokenVar);
+  assert.strictEqual(tokenVar.isSecret, true);
+  assert.strictEqual(tokenVar.value, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
+});
+
 // ------------------------------------------------------------------------------
 // SUMMARY
 // ------------------------------------------------------------------------------
