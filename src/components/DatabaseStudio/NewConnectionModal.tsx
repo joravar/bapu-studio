@@ -235,7 +235,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" style={{ maxWidth: '620px' }} onClick={(e) => e.stopPropagation()}>
         {/* Modal Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Database size={20} color="#10b981" />
             <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#fff' }}>
@@ -245,6 +245,83 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
 
           <button onClick={onClose} className="sidebar-action-btn" style={{ padding: '4px' }}>
             <X size={16} />
+          </button>
+        </div>
+
+        {/* Instant Demo Sandbox Banner */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(59, 130, 246, 0.08))',
+          border: '1px solid rgba(16, 185, 129, 0.3)',
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 14px',
+          marginBottom: '16px'
+        }}>
+          <div>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Sparkles size={13} />
+              <span>No Cloud Database? Use Free Instant Playground</span>
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>
+              Instantly loads a full demo database with users, workspaces & accounts tables.
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              const demoDb: DatabaseConnection = {
+                id: `db-demo-${Date.now()}`,
+                name: 'Sample SaaS Production DB',
+                type: 'postgres',
+                database: 'saas_production_db',
+                isConnected: true,
+                tables: [
+                  {
+                    name: 'users',
+                    rowCount: 1420,
+                    columns: [
+                      { name: 'id', type: 'VARCHAR(36)', isPrimaryKey: true, isNullable: false },
+                      { name: 'email', type: 'VARCHAR(255)', isPrimaryKey: false, isNullable: false },
+                      { name: 'name', type: 'VARCHAR(100)', isPrimaryKey: false, isNullable: false },
+                      { name: 'role', type: 'VARCHAR(50)', isPrimaryKey: false, isNullable: false },
+                      { name: 'status', type: 'VARCHAR(20)', isPrimaryKey: false, isNullable: false },
+                      { name: 'created_at', type: 'TIMESTAMP', isPrimaryKey: false, isNullable: false }
+                    ]
+                  },
+                  {
+                    name: 'workspaces',
+                    rowCount: 480,
+                    columns: [
+                      { name: 'id', type: 'VARCHAR(36)', isPrimaryKey: true, isNullable: false },
+                      { name: 'name', type: 'VARCHAR(100)', isPrimaryKey: false, isNullable: false },
+                      { name: 'plan_tier', type: 'VARCHAR(50)', isPrimaryKey: false, isNullable: false },
+                      { name: 'storage_mb', type: 'INTEGER', isPrimaryKey: false, isNullable: false },
+                      { name: 'created_at', type: 'DATE', isPrimaryKey: false, isNullable: false }
+                    ]
+                  },
+                  {
+                    name: 'accounts',
+                    rowCount: 890,
+                    columns: [
+                      { name: 'id', type: 'VARCHAR(36)', isPrimaryKey: true, isNullable: false },
+                      { name: 'user_id', type: 'VARCHAR(36)', isPrimaryKey: false, isNullable: false },
+                      { name: 'balance_cents', type: 'BIGINT', isPrimaryKey: false, isNullable: false },
+                      { name: 'currency', type: 'VARCHAR(3)', isPrimaryKey: false, isNullable: false },
+                      { name: 'status', type: 'VARCHAR(20)', isPrimaryKey: false, isNullable: false }
+                    ]
+                  }
+                ]
+              };
+              onConnect(demoDb);
+              onClose();
+            }}
+            className="btn-secondary"
+            style={{ borderColor: 'rgba(16, 185, 129, 0.4)', color: '#6ee7b7', padding: '6px 12px', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap' }}
+          >
+            ⚡ Load Playground
           </button>
         </div>
 
