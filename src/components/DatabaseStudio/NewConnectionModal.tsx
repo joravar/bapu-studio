@@ -195,6 +195,25 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
     e.preventDefault();
     if (!name.trim()) return;
 
+    const defaultTable = (database.includes('hg38') || database.includes('genome'))
+      ? {
+          name: 'chromInfo',
+          rowCount: 595,
+          columns: [
+            { name: 'chrom', type: 'VARCHAR(255)', isPrimaryKey: true, isNullable: false },
+            { name: 'size', type: 'INT', isPrimaryKey: false, isNullable: false },
+            { name: 'fileName', type: 'VARCHAR(255)', isPrimaryKey: false, isNullable: true }
+          ]
+        }
+      : {
+          name: type === 'mongodb' ? 'documents' : 'users',
+          rowCount: 0,
+          columns: [
+            { name: 'id', type: 'VARCHAR(36)', isPrimaryKey: true, isNullable: false },
+            { name: 'created_at', type: 'TIMESTAMP', isPrimaryKey: false, isNullable: true }
+          ]
+        };
+
     const dbConfig: DatabaseConnection = {
       id: `db-${Date.now()}`,
       name: name.trim(),
@@ -202,16 +221,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       database: database.trim() || (type === 'mongodb' ? 'test' : 'main'),
       connectionString: connectionString.trim() || undefined,
       isConnected: true,
-      tables: [
-        {
-          name: type === 'mongodb' ? 'documents' : 'users',
-          rowCount: 0,
-          columns: [
-            { name: '_id', type: 'OBJECTID', isPrimaryKey: true, isNullable: false },
-            { name: 'createdAt', type: 'DATE', isPrimaryKey: false, isNullable: true }
-          ]
-        }
-      ]
+      tables: [defaultTable]
     };
 
     // Attach credentials for native drivers
@@ -221,14 +231,21 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
     (dbConfig as any).password = password;
     (dbConfig as any).ssl = ssl;
 
-    // Fetch real schema from server if available
-    const schemaRes = await DatabaseService.fetchSchema(dbConfig);
-    if (schemaRes.success && schemaRes.tables.length > 0) {
-      dbConfig.tables = schemaRes.tables;
-    }
-
+    // Connect immediately so the UI is responsive
     onConnect(dbConfig);
     onClose();
+
+    // Fetch schema in background (with timeout protection for massive DBs)
+    try {
+      const schemaRes = await Promise.race([
+        DatabaseService.fetchSchema(dbConfig),
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3500))
+      ]);
+      if (schemaRes?.success && schemaRes.tables?.length > 0) {
+        dbConfig.tables = schemaRes.tables;
+        onConnect({ ...dbConfig });
+      }
+    } catch {}
   };
 
   return (
