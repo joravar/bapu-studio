@@ -319,9 +319,9 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
                     onChange={(e) => setExportFormat(e.target.value as any)}
                     className="kv-input"
                   >
-                    <option value="postman">Postman v2.1 (.json)</option>
-                    <option value="openapi">OpenAPI 3.0 (.json)</option>
-                    <option value="bapu">Bapu Native (.json)</option>
+                    <option value="postman">Postman v2.1 Compatible (.json)</option>
+                    <option value="openapi">OpenAPI 3.0 Specification (.json)</option>
+                    <option value="bapu">Bapu Studio Native (.json)</option>
                   </select>
                 </div>
               </div>
@@ -358,7 +358,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
                 </button>
                 <button onClick={handleDownloadExport} className="btn-send" style={{ fontSize: '12px' }}>
                   <Download size={13} />
-                  <span>Download {exportFormat === 'openapi' ? 'OpenAPI Spec' : 'Postman Collection'}</span>
+                  <span>Download Collection (.json)</span>
                 </button>
               </div>
             </div>
