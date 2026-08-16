@@ -223,7 +223,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }}
                 >
                   <div
-                    draggable
+                    draggable={!editingColId}
                     onDragStart={(e) => {
                       e.dataTransfer.effectAllowed = 'move';
                       setDraggedColIndex(colIndex);
@@ -245,18 +245,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     }}
                   >
                     <div 
-                      onClick={() => toggleCollapse(col.id)}
                       style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', flex: 1, overflow: 'hidden' }}
                     >
                       <GripVertical size={11} style={{ opacity: 0.4, cursor: 'grab', marginRight: '-2px' }} />
-                      {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-                      <Folder size={14} color="#60a5fa" />
+                      <div 
+                        onClick={() => toggleCollapse(col.id)}
+                        style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+                      >
+                        {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                        <Folder size={14} color="#60a5fa" style={{ marginLeft: '4px' }} />
+                      </div>
+                      
                       {editingColId === col.id ? (
                         <input
                           autoFocus
                           value={editingColName}
                           onChange={(e) => setEditingColName(e.target.value)}
+                          onFocus={(e) => e.target.select()}
                           onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               if (onRenameCollection && editingColName.trim()) {
@@ -274,17 +281,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             setEditingColId(null);
                           }}
                           className="inline-rename-input"
-                          style={{ height: '22px', fontSize: '11px' }}
+                          style={{ height: '22px', fontSize: '11px', flex: 1 }}
                         />
                       ) : (
                         <span 
+                          onClick={() => toggleCollapse(col.id)}
+                          onMouseDown={(e) => e.stopPropagation()}
                           onDoubleClick={(e) => {
+                            e.preventDefault();
                             e.stopPropagation();
                             setEditingColId(col.id);
                             setEditingColName(col.name);
                           }}
                           title="Double-click to rename collection"
-                          style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}
                         >
                           {col.name}
                         </span>
@@ -368,7 +378,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           return (
                             <div
                               key={req.id}
-                              draggable
+                              draggable={!editingReqId}
                               onDragStart={(e) => {
                                 e.stopPropagation();
                                 e.dataTransfer.effectAllowed = 'move';
@@ -424,7 +434,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                     autoFocus
                                     value={editingReqName}
                                     onChange={(e) => setEditingReqName(e.target.value)}
+                                    onFocus={(e) => e.target.select()}
                                     onClick={(e) => e.stopPropagation()}
+                                    onMouseDown={(e) => e.stopPropagation()}
                                     onKeyDown={(e) => {
                                       if (e.key === 'Enter') {
                                         if (onRenameRequest && editingReqName.trim()) {
@@ -442,17 +454,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                       setEditingReqId(null);
                                     }}
                                     className="inline-rename-input"
-                                    style={{ height: '20px', fontSize: '11px' }}
+                                    style={{ height: '20px', fontSize: '11px', flex: 1 }}
                                   />
                                 ) : (
                                   <span 
+                                    onMouseDown={(e) => e.stopPropagation()}
                                     onDoubleClick={(e) => {
+                                      e.preventDefault();
                                       e.stopPropagation();
                                       setEditingReqId(req.id);
                                       setEditingReqName(req.name);
                                     }}
                                     title="Double-click to rename request"
-                                    style={{ fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                    style={{ fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}
                                   >
                                     {req.name}
                                   </span>
@@ -519,7 +533,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               return (
                 <div
                   key={db.id}
-                  draggable
+                  draggable={!editingDbId}
                   onDragStart={(e) => {
                     e.dataTransfer.effectAllowed = 'move';
                     setDraggedDbIndex(dbIndex);
@@ -568,7 +582,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           autoFocus
                           value={editingDbName}
                           onChange={(e) => setEditingDbName(e.target.value)}
+                          onFocus={(e) => e.target.select()}
                           onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               if (onRenameDatabase && editingDbName.trim()) {
@@ -586,11 +602,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             setEditingDbId(null);
                           }}
                           className="inline-rename-input"
-                          style={{ height: '20px', fontSize: '11px' }}
+                          style={{ height: '20px', fontSize: '11px', width: '100%' }}
                         />
                       ) : (
                         <div 
+                          onMouseDown={(e) => e.stopPropagation()}
                           onDoubleClick={(e) => {
+                            e.preventDefault();
                             e.stopPropagation();
                             setEditingDbId(db.id);
                             setEditingDbName(db.name);
