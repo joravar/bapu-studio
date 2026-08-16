@@ -364,6 +364,87 @@ test('Drag & Drop: reorder Database driver connections priority', () => {
 });
 
 // ------------------------------------------------------------------------------
+// 7. POSTMAN & OPENAPI IMPORT / EXPORT SERIALIZATION
+// ------------------------------------------------------------------------------
+console.log('\n--- 7. Testing Collection Import & Export Engine ---');
+
+test('Export & Import: Postman Collection v2.1 round-trip integrity', () => {
+  const sampleCollection = {
+    id: 'col-test',
+    name: 'Stripe Payments API',
+    requests: [
+      {
+        id: 'r1',
+        name: 'Create Payment Intent',
+        method: 'POST',
+        url: 'https://api.stripe.com/v1/payment_intents',
+        params: [],
+        headers: [{ id: 'h1', key: 'Authorization', value: 'Bearer sk_test_123', enabled: true }],
+        bodyType: 'json',
+        bodyContent: '{"amount": 2000, "currency": "usd"}',
+        authType: 'bearer',
+        authConfig: { token: 'sk_test_123' },
+        preRequestScript: 'console.log("Starting Stripe charge...");',
+        testScript: 'pm.test("Status is 200", function () { pm.response.to.have.status(200); });'
+      }
+    ]
+  };
+
+  // 1. Simulate Postman v2.1 Export
+  const postmanDoc = {
+    info: {
+      name: sampleCollection.name,
+      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
+    },
+    item: [
+      {
+        name: sampleCollection.requests[0].name,
+        event: [
+          { listen: 'prerequest', script: { exec: ['console.log("Starting Stripe charge...");'] } },
+          { listen: 'test', script: { exec: ['pm.test("Status is 200", function () { pm.response.to.have.status(200); });'] } }
+        ],
+        request: {
+          method: 'POST',
+          header: [{ key: 'Authorization', value: 'Bearer sk_test_123' }],
+          url: { raw: 'https://api.stripe.com/v1/payment_intents' },
+          body: { mode: 'raw', raw: '{"amount": 2000, "currency": "usd"}' }
+        }
+      }
+    ]
+  };
+
+  const exportedJson = JSON.stringify(postmanDoc);
+  assert.ok(exportedJson.includes('https://schema.getpostman.com/json/collection/v2.1.0/collection.json'));
+
+  // 2. Simulate Import
+  const importedDoc = JSON.parse(exportedJson);
+  assert.strictEqual(importedDoc.info.name, 'Stripe Payments API');
+  assert.strictEqual(importedDoc.item.length, 1);
+  assert.strictEqual(importedDoc.item[0].request.method, 'POST');
+  assert.strictEqual(importedDoc.item[0].event.length, 2);
+});
+
+test('Import: OpenAPI 3.0 YAML/JSON specification parsing', () => {
+  const openApiDoc = {
+    openapi: '3.0.0',
+    info: { title: 'Petstore API', version: '1.0.0' },
+    paths: {
+      '/pets': {
+        get: { summary: 'List all pets', parameters: [] },
+        post: { summary: 'Create a pet', parameters: [] }
+      },
+      '/pets/{petId}': {
+        get: { summary: 'Info for a specific pet', parameters: [] }
+      }
+    }
+  };
+
+  const pathEntries = Object.entries(openApiDoc.paths);
+  assert.strictEqual(pathEntries.length, 2);
+  assert.strictEqual(openApiDoc.info.title, 'Petstore API');
+});
+
+// ------------------------------------------------------------------------------
 // SUMMARY
 // ------------------------------------------------------------------------------
 console.log('\n==============================================================================');

@@ -7,16 +7,20 @@ import {
   FolderPlus, 
   Plus, 
   ChevronRight, 
-  ChevronDown,
+  ChevronDown, 
   Folder, 
-  Trash2,
-  HardDrive,
-  Radio,
-  GripVertical
+  Trash2, 
+  HardDrive, 
+  Radio, 
+  GripVertical,
+  Upload,
+  Download,
+  FolderDown
 } from 'lucide-react';
 import { Collection, ApiRequest, DatabaseConnection, HistoryItem } from '../types';
 import { NewCollectionModal } from './ApiStudio/NewCollectionModal';
 import { NewConnectionModal } from './DatabaseStudio/NewConnectionModal';
+import { ImportExportModal } from './ApiStudio/ImportExportModal';
 
 export type WorkspaceTab = 'api' | 'db' | 'streams' | 'secrets' | 'history';
 
@@ -34,6 +38,7 @@ interface SidebarProps {
   onReorderCollections?: (sourceIndex: number, destIndex: number) => void;
   onReorderRequests?: (collectionId: string, sourceIndex: number, destIndex: number) => void;
   onMoveRequest?: (sourceColId: string, destColId: string, sourceIndex: number, destIndex: number) => void;
+  onImportCollection?: (collection: Collection) => void;
   databases: DatabaseConnection[];
   activeDb: DatabaseConnection | null;
   onSelectDb: (db: DatabaseConnection) => void;
@@ -57,6 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onReorderCollections,
   onReorderRequests,
   onMoveRequest,
+  onImportCollection,
   databases,
   activeDb,
   onSelectDb,
@@ -67,6 +73,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [isNewColModalOpen, setIsNewColModalOpen] = useState(false);
   const [isNewDbModalOpen, setIsNewDbModalOpen] = useState(false);
+  const [isImportExportModalOpen, setIsImportExportModalOpen] = useState(false);
+  const [selectedColForExport, setSelectedColForExport] = useState<string | undefined>(undefined);
   const [collapsedCols, setCollapsedCols] = useState<Record<string, boolean>>({});
 
   // Drag and Drop States
@@ -140,6 +148,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="sidebar-section-header">
               <span>Collections ({collections.length})</span>
               <div style={{ display: 'flex', gap: '4px' }}>
+                <button 
+                  onClick={() => {
+                    setSelectedColForExport(undefined);
+                    setIsImportExportModalOpen(true);
+                  }} 
+                  className="sidebar-action-btn" 
+                  title="Import / Export Collections (Postman, OpenAPI, Bapu JSON)"
+                >
+                  <FolderDown size={14} color="#38bdf8" />
+                </button>
                 <button 
                   onClick={onNewRequest} 
                   className="sidebar-action-btn" 
@@ -224,6 +242,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedColForExport(col.id);
+                          setIsImportExportModalOpen(true);
+                        }}
+                        className="sidebar-action-btn"
+                        title={`Export "${col.name}" (Postman / OpenAPI / JSON)`}
+                      >
+                        <Download size={11} color="#10b981" />
+                      </button>
                       <button
                         onClick={() => onNewRequestInCollection(col.id)}
                         className="sidebar-action-btn"
@@ -515,6 +544,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onConnect={(newDb) => {
           onAddDatabase(newDb);
         }}
+      />
+
+      {/* Collections Hub: Import & Export Modal */}
+      <ImportExportModal
+        isOpen={isImportExportModalOpen}
+        onClose={() => setIsImportExportModalOpen(false)}
+        collections={collections}
+        onImportCollection={(newCol) => {
+          if (onImportCollection) {
+            onImportCollection(newCol);
+          }
+        }}
+        selectedCollectionId={selectedColForExport}
       />
     </aside>
   );

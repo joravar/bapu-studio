@@ -313,6 +313,15 @@ export const App: React.FC = () => {
     };
   }, [isResizingSidebar]);
 
+  const handleImportCollection = (newCol: Collection) => {
+    setCollections(prev => [...prev, newCol]);
+    if (newCol.requests.length > 0) {
+      setActiveRequest(newCol.requests[0]);
+    }
+    setActiveTab('api');
+    handleRecordHistory(`Imported: ${newCol.name}`, `${newCol.requests.length} API endpoints parsed`);
+  };
+
   return (
     <div className="nexus-app-container">
       {/* Top Application Header */}
@@ -344,6 +353,7 @@ export const App: React.FC = () => {
             onReorderCollections={handleReorderCollections}
             onReorderRequests={handleReorderRequests}
             onMoveRequest={handleMoveRequest}
+            onImportCollection={handleImportCollection}
             databases={databases}
             activeDb={activeDb}
             onSelectDb={(db) => {
