@@ -5,15 +5,16 @@
 import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
+import http from 'node:http';
 
 console.log('🧪 Starting Full-Lifecycle & Integration Test Suite for Bapu Studio...\n');
 
 let passedTests = 0;
 let failedTests = 0;
 
-function test(name, fn) {
+async function test(name, fn) {
   try {
-    fn();
+    await fn();
     console.log(`  ✅ PASS: ${name}`);
     passedTests++;
   } catch (err) {
@@ -813,6 +814,164 @@ test('History Studio: Record, Filter, Search, Replay, and Clear Lifecycle', () =
   history = [];
   assert.strictEqual(history.length, 0);
 });
+
+// ------------------------------------------------------------------------------
+// 11. EPHEMERAL LOCAL PROTOCOL & NETWORK MOCK DAEMONS
+// ------------------------------------------------------------------------------
+console.log('\n--- 11. Testing Ephemeral Local Protocol & Network Mock Daemons ---');
+
+async function runNetworkDaemonSuite() {
+  let server;
+  let serverUrl;
+
+  await test('Ephemeral Daemon: Spin up in-memory HTTP/SSE test server', async () => {
+    await new Promise((resolve) => {
+      server = http.createServer((req, res) => {
+        // Universal CORS
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', '*');
+
+        if (req.method === 'OPTIONS') {
+          res.writeHead(200);
+          res.end();
+          return;
+        }
+
+        const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
+
+        // 1. Echo JSON endpoint
+        if (parsedUrl.pathname === '/api/echo') {
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', () => {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              method: req.method,
+              query: Object.fromEntries(parsedUrl.searchParams.entries()),
+              headers: req.headers,
+              body: body ? (body.startsWith('{') ? JSON.parse(body) : body) : null
+            }));
+          });
+          return;
+        }
+
+        // 2. Status code endpoint
+        if (parsedUrl.pathname.startsWith('/api/status/')) {
+          const code = parseInt(parsedUrl.pathname.split('/')[3], 10) || 200;
+          res.writeHead(code, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: code, message: `Response with status ${code}` }));
+          return;
+        }
+
+        // 3. Bearer Auth endpoint
+        if (parsedUrl.pathname === '/api/auth') {
+          const authHeader = req.headers['authorization'];
+          if (authHeader === 'Bearer bapu_secret_jwt_token') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ authenticated: true, user: { id: 'usr_8892', role: 'admin' } }));
+          } else {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Unauthorized', message: 'Missing or invalid Bearer token' }));
+          }
+          return;
+        }
+
+        // 4. Server-Sent Events (SSE) streaming endpoint
+        if (parsedUrl.pathname === '/api/stream/sse') {
+          res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive'
+          });
+          res.write('data: {"chunk":1,"text":"Hello"}\n\n');
+          res.write('data: {"chunk":2,"text":"from"}\n\n');
+          res.write('data: {"chunk":3,"text":"Bapu Studio"}\n\n');
+          res.end();
+          return;
+        }
+
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not Found' }));
+      });
+
+      server.listen(0, '127.0.0.1', () => {
+        const port = server.address().port;
+        serverUrl = `http://127.0.0.1:${port}`;
+        resolve();
+      });
+    });
+    assert.ok(serverUrl.startsWith('http://127.0.0.1:'));
+  });
+
+  await test('Ephemeral Daemon: GET request with query params parsing', async () => {
+    const res = await fetch(`${serverUrl}/api/echo?service=auth&limit=25&debug=true`);
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.strictEqual(data.method, 'GET');
+    assert.strictEqual(data.query.service, 'auth');
+    assert.strictEqual(data.query.limit, '25');
+    assert.strictEqual(data.query.debug, 'true');
+  });
+
+  await test('Ephemeral Daemon: POST request with JSON payload and custom headers', async () => {
+    const payload = { model: 'gpt-4o', temperature: 0.7, max_tokens: 150 };
+    const res = await fetch(`${serverUrl}/api/echo`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Client-Version': 'Bapu-1.0.0-oss'
+      },
+      body: JSON.stringify(payload)
+    });
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.strictEqual(data.method, 'POST');
+    assert.strictEqual(data.headers['x-client-version'], 'Bapu-1.0.0-oss');
+    assert.strictEqual(data.body.model, 'gpt-4o');
+    assert.strictEqual(data.body.temperature, 0.7);
+  });
+
+  await test('Ephemeral Daemon: Bearer Token Auth flow (401 vs 200)', async () => {
+    // 1. Without Token
+    const unauthRes = await fetch(`${serverUrl}/api/auth`);
+    assert.strictEqual(unauthRes.status, 401);
+    const unauthData = await unauthRes.json();
+    assert.strictEqual(unauthData.error, 'Unauthorized');
+
+    // 2. With Valid Bearer Token
+    const authRes = await fetch(`${serverUrl}/api/auth`, {
+      headers: { 'Authorization': 'Bearer bapu_secret_jwt_token' }
+    });
+    assert.strictEqual(authRes.status, 200);
+    const authData = await authRes.json();
+    assert.strictEqual(authData.authenticated, true);
+    assert.strictEqual(authData.user.id, 'usr_8892');
+  });
+
+  await test('Ephemeral Daemon: Status Code Matrix (200, 404, 500)', async () => {
+    const res404 = await fetch(`${serverUrl}/api/status/404`);
+    assert.strictEqual(res404.status, 404);
+
+    const res500 = await fetch(`${serverUrl}/api/status/500`);
+    assert.strictEqual(res500.status, 500);
+  });
+
+  await test('Ephemeral Daemon: Server-Sent Events (SSE) Stream Consumption', async () => {
+    const res = await fetch(`${serverUrl}/api/stream/sse`);
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.headers.get('content-type'), 'text/event-stream');
+    const text = await res.text();
+    assert.ok(text.includes('Hello'));
+    assert.ok(text.includes('Bapu Studio'));
+  });
+
+  await test('Ephemeral Daemon: Gracefully terminate in-memory server', async () => {
+    await new Promise((resolve) => server.close(resolve));
+  });
+}
+
+await runNetworkDaemonSuite();
 
 // ------------------------------------------------------------------------------
 // SUMMARY

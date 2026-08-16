@@ -3,8 +3,8 @@
 <div align="center">
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Bapu Studio CI](https://github.com/joravar/bapu-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/joravar/bapu-studio/actions/workflows/ci.yml)
 [![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20macOS-informational.svg)](https://github.com/joravar/bapu-studio/releases/tag/v1.0.0)
-[![Release](https://img.shields.io/github/v/release/joravar/bapu-studio?color=emerald)](https://github.com/joravar/bapu-studio/releases/tag/v1.0.0)
 [![Website](https://img.shields.io/badge/Website-Live-brightgreen.svg)](https://joravar.github.io/bapu-studio/)
 [![Sponsor](https://img.shields.io/badge/GitHub-Sponsor-pink.svg)](https://github.com/sponsors/joravar)
 
