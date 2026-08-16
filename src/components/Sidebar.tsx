@@ -11,7 +11,8 @@ import {
   Folder, 
   Trash2,
   HardDrive,
-  Radio
+  Radio,
+  GripVertical
 } from 'lucide-react';
 import { Collection, ApiRequest, DatabaseConnection, HistoryItem } from '../types';
 import { NewCollectionModal } from './ApiStudio/NewCollectionModal';
@@ -30,11 +31,15 @@ interface SidebarProps {
   onDeleteCollection: (collectionId: string) => void;
   onNewRequestInCollection: (collectionId: string) => void;
   onDeleteRequest: (requestId: string) => void;
+  onReorderCollections?: (sourceIndex: number, destIndex: number) => void;
+  onReorderRequests?: (collectionId: string, sourceIndex: number, destIndex: number) => void;
+  onMoveRequest?: (sourceColId: string, destColId: string, sourceIndex: number, destIndex: number) => void;
   databases: DatabaseConnection[];
   activeDb: DatabaseConnection | null;
   onSelectDb: (db: DatabaseConnection) => void;
   onAddDatabase: (db: DatabaseConnection) => void;
   onDeleteDatabase: (dbId: string) => void;
+  onReorderDatabases?: (sourceIndex: number, destIndex: number) => void;
   history: HistoryItem[];
 }
 
@@ -49,16 +54,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onDeleteCollection,
   onNewRequestInCollection,
   onDeleteRequest,
+  onReorderCollections,
+  onReorderRequests,
+  onMoveRequest,
   databases,
   activeDb,
   onSelectDb,
   onAddDatabase,
   onDeleteDatabase,
+  onReorderDatabases,
   history
 }) => {
   const [isNewColModalOpen, setIsNewColModalOpen] = useState(false);
   const [isNewDbModalOpen, setIsNewDbModalOpen] = useState(false);
   const [collapsedCols, setCollapsedCols] = useState<Record<string, boolean>>({});
+
+  // Drag and Drop States
+  const [draggedColIndex, setDraggedColIndex] = useState<number | null>(null);
+  const [dragOverColIndex, setDragOverColIndex] = useState<number | null>(null);
+
+  const [draggedReq, setDraggedReq] = useState<{ colId: string; index: number } | null>(null);
+  const [dragOverReq, setDragOverReq] = useState<{ colId: string; index: number } | null>(null);
+
+  const [draggedDbIndex, setDraggedDbIndex] = useState<number | null>(null);
+  const [dragOverDbIndex, setDragOverDbIndex] = useState<number | null>(null);
 
   const toggleCollapse = (id: string) => {
     setCollapsedCols(prev => ({ ...prev, [id]: !prev[id] }));
@@ -138,24 +157,65 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             </div>
 
-            {collections.map(col => {
+            {collections.map((col, colIndex) => {
               const isCollapsed = !!collapsedCols[col.id];
+              const isDraggingThisCol = draggedColIndex === colIndex;
+              const isDragOverCol = dragOverColIndex === colIndex;
+
               return (
-                <div key={col.id} style={{ marginBottom: '10px' }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '4px 6px',
-                    borderRadius: 'var(--radius-sm)',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    color: 'var(--text-muted)'
-                  }}>
+                <div
+                  key={col.id}
+                  style={{
+                    marginBottom: '10px',
+                    opacity: isDraggingThisCol ? 0.4 : 1,
+                    borderTop: isDragOverCol && draggedColIndex !== null && draggedColIndex !== colIndex ? '2px solid #3b82f6' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (draggedColIndex !== null && draggedColIndex !== colIndex) {
+                      setDragOverColIndex(colIndex);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverColIndex === colIndex) setDragOverColIndex(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedColIndex !== null && draggedColIndex !== colIndex) {
+                      if (onReorderCollections) onReorderCollections(draggedColIndex, colIndex);
+                      setDraggedColIndex(null);
+                      setDragOverColIndex(null);
+                    }
+                  }}
+                >
+                  <div
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = 'move';
+                      setDraggedColIndex(colIndex);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedColIndex(null);
+                      setDragOverColIndex(null);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '4px 6px',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: 'var(--text-muted)',
+                      cursor: 'grab'
+                    }}
+                  >
                     <div 
                       onClick={() => toggleCollapse(col.id)}
                       style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', flex: 1, overflow: 'hidden' }}
                     >
+                      <GripVertical size={11} style={{ opacity: 0.4, cursor: 'grab', marginRight: '-2px' }} />
                       {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
                       <Folder size={14} color="#60a5fa" />
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -188,22 +248,86 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
 
                   {!isCollapsed && (
-                    <div style={{ paddingLeft: '14px', marginTop: '2px' }}>
+                    <div
+                      style={{ paddingLeft: '14px', marginTop: '2px', minHeight: col.requests.length === 0 ? '30px' : 'auto' }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        if (draggedReq && draggedReq.colId !== col.id && col.requests.length === 0) {
+                          setDragOverReq({ colId: col.id, index: 0 });
+                        }
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (draggedReq && draggedReq.colId !== col.id && col.requests.length === 0) {
+                          if (onMoveRequest) onMoveRequest(draggedReq.colId, col.id, draggedReq.index, 0);
+                          setDraggedReq(null);
+                          setDragOverReq(null);
+                        }
+                      }}
+                    >
                       {col.requests.length === 0 ? (
-                        <div style={{ fontSize: '11px', color: 'var(--text-dim)', padding: '4px 8px' }}>
-                          No requests yet. Click + above.
+                        <div style={{ fontSize: '11px', color: 'var(--text-dim)', padding: '4px 8px', border: '1px dashed var(--border-subtle)', borderRadius: '4px', margin: '4px 0' }}>
+                          Drag requests here or click + above
                         </div>
                       ) : (
-                        col.requests.map(req => {
+                        col.requests.map((req, reqIndex) => {
                           const isSelected = activeRequest?.id === req.id;
+                          const isDraggingThisReq = draggedReq?.colId === col.id && draggedReq.index === reqIndex;
+                          const isOverThisReq = dragOverReq?.colId === col.id && dragOverReq.index === reqIndex;
+
                           return (
                             <div
                               key={req.id}
+                              draggable
+                              onDragStart={(e) => {
+                                e.stopPropagation();
+                                e.dataTransfer.effectAllowed = 'move';
+                                setDraggedReq({ colId: col.id, index: reqIndex });
+                              }}
+                              onDragEnd={() => {
+                                setDraggedReq(null);
+                                setDragOverReq(null);
+                              }}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (draggedReq && (draggedReq.colId !== col.id || draggedReq.index !== reqIndex)) {
+                                  setDragOverReq({ colId: col.id, index: reqIndex });
+                                }
+                              }}
+                              onDragLeave={(e) => {
+                                e.stopPropagation();
+                                if (dragOverReq?.colId === col.id && dragOverReq.index === reqIndex) {
+                                  setDragOverReq(null);
+                                }
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (draggedReq) {
+                                  if (draggedReq.colId === col.id) {
+                                    if (onReorderRequests) onReorderRequests(col.id, draggedReq.index, reqIndex);
+                                  } else {
+                                    if (onMoveRequest) onMoveRequest(draggedReq.colId, col.id, draggedReq.index, reqIndex);
+                                  }
+                                  setDraggedReq(null);
+                                  setDragOverReq(null);
+                                }
+                              }}
                               className={`sidebar-item ${isSelected ? 'active' : ''}`}
                               onClick={() => onSelectRequest(req)}
-                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                opacity: isDraggingThisReq ? 0.35 : 1,
+                                borderTop: isOverThisReq ? '2px solid #38bdf8' : 'none',
+                                cursor: 'grab',
+                                transition: 'all 0.15s ease'
+                              }}
                             >
-                              <div className="sidebar-item-left" style={{ flex: 1, minWidth: 0 }}>
+                              <div className="sidebar-item-left" style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <GripVertical size={11} style={{ opacity: 0.35, flexShrink: 0 }} />
                                 <span className={`method-pill method-${req.method}`}>{req.method}</span>
                                 <span style={{ fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {req.name}
@@ -248,16 +372,56 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             </div>
 
-            {databases.map(db => {
+            {databases.map((db, dbIndex) => {
               const isSelected = activeDb?.id === db.id;
+              const isDraggingThisDb = draggedDbIndex === dbIndex;
+              const isOverThisDb = dragOverDbIndex === dbIndex;
+
               return (
                 <div
                   key={db.id}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = 'move';
+                    setDraggedDbIndex(dbIndex);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedDbIndex(null);
+                    setDragOverDbIndex(null);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (draggedDbIndex !== null && draggedDbIndex !== dbIndex) {
+                      setDragOverDbIndex(dbIndex);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverDbIndex === dbIndex) setDragOverDbIndex(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedDbIndex !== null && draggedDbIndex !== dbIndex) {
+                      if (onReorderDatabases) onReorderDatabases(draggedDbIndex, dbIndex);
+                      setDraggedDbIndex(null);
+                      setDragOverDbIndex(null);
+                    }
+                  }}
                   className={`sidebar-item ${isSelected ? 'active' : ''}`}
                   onClick={() => onSelectDb(db)}
-                  style={{ padding: '8px', marginBottom: '6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                  style={{
+                    padding: '8px',
+                    marginBottom: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    opacity: isDraggingThisDb ? 0.35 : 1,
+                    borderTop: isOverThisDb ? '2px solid #10b981' : 'none',
+                    cursor: 'grab',
+                    transition: 'all 0.15s ease'
+                  }}
                 >
-                  <div className="sidebar-item-left">
+                  <div className="sidebar-item-left" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <GripVertical size={11} style={{ opacity: 0.35 }} />
                     <HardDrive size={14} color={db.isConnected ? '#10b981' : '#64748b'} />
                     <div>
                       <div style={{ fontSize: '12px', fontWeight: 600 }}>{db.name}</div>

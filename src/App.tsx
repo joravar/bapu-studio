@@ -209,6 +209,65 @@ export const App: React.FC = () => {
     });
   };
 
+  const handleReorderCollections = (sourceIndex: number, destIndex: number) => {
+    if (sourceIndex === destIndex) return;
+    setCollections(prev => {
+      const copy = [...prev];
+      const [removed] = copy.splice(sourceIndex, 1);
+      copy.splice(destIndex, 0, removed);
+      return copy;
+    });
+  };
+
+  const handleReorderRequests = (collectionId: string, sourceIndex: number, destIndex: number) => {
+    if (sourceIndex === destIndex) return;
+    setCollections(prev => prev.map(col => {
+      if (col.id !== collectionId) return col;
+      const copy = [...col.requests];
+      const [removed] = copy.splice(sourceIndex, 1);
+      copy.splice(destIndex, 0, removed);
+      return { ...col, requests: copy };
+    }));
+  };
+
+  const handleMoveRequest = (sourceColId: string, destColId: string, sourceIndex: number, destIndex: number) => {
+    setCollections(prev => {
+      const sourceCol = prev.find(c => c.id === sourceColId);
+      const destCol = prev.find(c => c.id === destColId);
+      if (!sourceCol || !destCol) return prev;
+
+      const sourceRequests = [...sourceCol.requests];
+      const [movedReq] = sourceRequests.splice(sourceIndex, 1);
+      if (!movedReq) return prev;
+
+      movedReq.collectionId = destColId;
+
+      if (sourceColId === destColId) {
+        sourceRequests.splice(destIndex, 0, movedReq);
+        return prev.map(c => c.id === sourceColId ? { ...c, requests: sourceRequests } : c);
+      }
+
+      const destRequests = [...destCol.requests];
+      destRequests.splice(destIndex, 0, movedReq);
+
+      return prev.map(c => {
+        if (c.id === sourceColId) return { ...c, requests: sourceRequests };
+        if (c.id === destColId) return { ...c, requests: destRequests };
+        return c;
+      });
+    });
+  };
+
+  const handleReorderDatabases = (sourceIndex: number, destIndex: number) => {
+    if (sourceIndex === destIndex) return;
+    setDatabases(prev => {
+      const copy = [...prev];
+      const [removed] = copy.splice(sourceIndex, 1);
+      copy.splice(destIndex, 0, removed);
+      return copy;
+    });
+  };
+
   const handleRecordHistory = (title: string, subtitle: string, status?: number) => {
     const newItem: HistoryItem = {
       id: `hist-${Date.now()}`,
@@ -248,6 +307,9 @@ export const App: React.FC = () => {
           onDeleteCollection={handleDeleteCollection}
           onNewRequestInCollection={handleNewRequestInCollection}
           onDeleteRequest={handleDeleteRequest}
+          onReorderCollections={handleReorderCollections}
+          onReorderRequests={handleReorderRequests}
+          onMoveRequest={handleMoveRequest}
           databases={databases}
           activeDb={activeDb}
           onSelectDb={(db) => {
@@ -256,6 +318,7 @@ export const App: React.FC = () => {
           }}
           onAddDatabase={handleAddDatabase}
           onDeleteDatabase={handleDeleteDatabase}
+          onReorderDatabases={handleReorderDatabases}
           history={history}
         />
 

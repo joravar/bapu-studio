@@ -325,6 +325,45 @@ test('Test script: evaluate pm.test, status assertions, and json body checks', (
 });
 
 // ------------------------------------------------------------------------------
+// 6. DRAG AND DROP SEQUENCE REORDERING
+// ------------------------------------------------------------------------------
+console.log('\n--- 6. Testing Drag & Drop Sequencing for APIs and Databases ---');
+
+test('Drag & Drop: reorder API request items inside a collection', () => {
+  const requests = [
+    { id: 'r1', name: 'GET Users' },
+    { id: 'r2', name: 'POST Users' },
+    { id: 'r3', name: 'DELETE Users' }
+  ];
+
+  // Move r3 (index 2) to top (index 0)
+  const sourceIndex = 2;
+  const destIndex = 0;
+  const copy = [...requests];
+  const [removed] = copy.splice(sourceIndex, 1);
+  copy.splice(destIndex, 0, removed);
+
+  assert.strictEqual(copy[0].id, 'r3');
+  assert.strictEqual(copy[1].id, 'r1');
+  assert.strictEqual(copy[2].id, 'r2');
+});
+
+test('Drag & Drop: reorder Database driver connections priority', () => {
+  const dbs = [
+    { id: 'db-pg', name: 'PostgreSQL' },
+    { id: 'db-my', name: 'MySQL' },
+    { id: 'db-mg', name: 'MongoDB' }
+  ];
+
+  // Move MongoDB (index 2) to index 1
+  const copy = [...dbs];
+  const [removed] = copy.splice(2, 1);
+  copy.splice(1, 0, removed);
+
+  assert.deepStrictEqual(copy.map(d => d.name), ['PostgreSQL', 'MongoDB', 'MySQL']);
+});
+
+// ------------------------------------------------------------------------------
 // SUMMARY
 // ------------------------------------------------------------------------------
 console.log('\n==============================================================================');
