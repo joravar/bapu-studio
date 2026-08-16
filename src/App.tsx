@@ -6,7 +6,6 @@ import { DatabaseStudio } from './components/DatabaseStudio/DatabaseStudio';
 import { StreamStudio } from './components/StreamStudio/StreamStudio';
 import { SecretsStudio } from './components/SecretsStudio/SecretsStudio';
 import { HistoryStudio } from './components/HistoryStudio/HistoryStudio';
-import { ProModal } from './components/ProModal';
 import { 
   INITIAL_COLLECTIONS, 
   INITIAL_DATABASES, 
@@ -85,7 +84,6 @@ export const App: React.FC = () => {
     return INITIAL_HISTORY;
   });
 
-  const [isProModalOpen, setIsProModalOpen] = useState(false);
 
   // Automatically save any changes to localStorage
   useEffect(() => {
@@ -238,27 +236,7 @@ export const App: React.FC = () => {
         if (remaining.length > 0) {
           setActiveDb(remaining[0]);
         } else {
-          // If all user databases are deleted, create a clean default demo DB
-          const fallbackDb: DatabaseConnection = {
-            id: `db-demo-${Date.now()}`,
-            name: 'Sample PostgreSQL (Demo)',
-            type: 'postgres',
-            database: 'main',
-            isConnected: true,
-            tables: [
-              {
-                name: 'users',
-                rowCount: 50,
-                columns: [
-                  { name: 'id', type: 'UUID', isPrimaryKey: true, isNullable: false },
-                  { name: 'email', type: 'VARCHAR(255)', isPrimaryKey: false, isNullable: false },
-                  { name: 'role', type: 'VARCHAR(50)', isPrimaryKey: false, isNullable: false }
-                ]
-              }
-            ]
-          };
-          setActiveDb(fallbackDb);
-          return [fallbackDb];
+          setActiveDb({ id: 'db-empty', name: 'No Connection', type: 'postgres', database: '', isConnected: false, tables: [] });
         }
       }
       return remaining;
@@ -435,7 +413,6 @@ export const App: React.FC = () => {
         environments={environments}
         activeEnv={activeEnv}
         onSelectEnv={setActiveEnv}
-        onOpenProModal={() => setIsProModalOpen(true)}
       />
 
       {/* Main App Cockpit */}
@@ -591,12 +568,6 @@ export const App: React.FC = () => {
           </div>
         </main>
       </div>
-
-      {/* Commercial Open-Core Upgrade Modal */}
-      <ProModal
-        isOpen={isProModalOpen}
-        onClose={() => setIsProModalOpen(false)}
-      />
     </div>
   );
 };

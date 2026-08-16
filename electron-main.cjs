@@ -34,6 +34,24 @@ function createWindow() {
       win.loadFile(path.join(__dirname, 'dist', 'index.html'));
     });
   }
+
+  // Set Content-Security-Policy headers
+  const { session } = require('electron');
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self'; " +
+          "script-src 'self' 'unsafe-inline'; " +
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+          "font-src 'self' https://fonts.gstatic.com; " +
+          "connect-src 'self' https: http: ws: wss:; " +
+          "img-src 'self' data: https:;"
+        ]
+      }
+    });
+  });
 }
 
 // ------------------------------------------------------------------------------

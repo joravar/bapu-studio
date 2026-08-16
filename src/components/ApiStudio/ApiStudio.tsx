@@ -85,40 +85,12 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
     };
   }, [isResizingSplit]);
 
-  const [response, setResponse] = useState<ApiResponse | null>(() => {
-    const initialRes: ApiResponse = {
-      status: 200,
-      statusText: 'OK',
-      timeMs: 42,
-      sizeBytes: 1240,
-      headers: {
-        'content-type': 'application/json; charset=utf-8',
-        'cache-control': 'no-cache',
-        'x-powered-by': 'Nexus-Core-Engine'
-      },
-      data: {
-        status: "success",
-        user: {
-          id: "usr_9982_x4",
-          name: "Alex Rivera",
-          email: "alex@developer.io",
-          role: "admin",
-          verified: true,
-          permissions: ["repo:read", "repo:write", "billing:admin"],
-          created_at: "2026-01-15T08:30:00.000Z"
-        },
-        quota: {
-          api_calls_remaining: 99850,
-          reset_in_seconds: 3600
-        }
-      },
-      timestamp: new Date().toISOString()
-    };
-    const testExec = executeTestScript(activeRequest.testScript || activeRequest.tests || '', initialRes, activeRequest, activeEnv);
-    initialRes.testResults = testExec.testResults;
-    initialRes.consoleLogs = testExec.logs;
-    return initialRes;
-  });
+  const [response, setResponse] = useState<ApiResponse | null>(null);
+
+  // Clear response pane when active request changes
+  useEffect(() => {
+    setResponse(null);
+  }, [activeRequest.id]);
 
   // Resolve environment variables like {{API_BASE_URL}}
   const resolveVariables = (input: string, env: Environment): string => {

@@ -2,7 +2,7 @@ import React from 'react';
 import { 
   Zap, 
   ChevronDown, 
-  Sparkles, 
+  Heart, 
   GitBranch, 
   Search, 
   Minus, 
@@ -16,14 +16,12 @@ interface HeaderProps {
   environments: Environment[];
   activeEnv: Environment;
   onSelectEnv: (env: Environment) => void;
-  onOpenProModal: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   environments,
   activeEnv,
-  onSelectEnv,
-  onOpenProModal
+  onSelectEnv
 }) => {
   return (
     <header className="nexus-header">
@@ -92,28 +90,31 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Right: Pro Tier Monetization CTA & Window Controls */}
+      {/* Right: GitHub Sponsors & Window Controls */}
       <div className="header-right">
-        <button 
-          onClick={onOpenProModal}
+        <a 
+          href="https://github.com/sponsors/joravar"
+          target="_blank"
+          rel="noopener noreferrer"
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(6,182,212,0.15))',
-            border: '1px solid rgba(59,130,246,0.3)',
-            color: '#60a5fa',
+            background: 'rgba(236, 72, 153, 0.12)',
+            border: '1px solid rgba(236, 72, 153, 0.3)',
+            color: '#f472b6',
             fontSize: '11px',
             fontWeight: 700,
             padding: '4px 10px',
             borderRadius: 'var(--radius-md)',
-            cursor: 'pointer',
+            textDecoration: 'none',
             transition: 'all 0.15s ease'
           }}
+          title="Support Bapu Studio development on GitHub Sponsors"
         >
-          <Sparkles size={12} />
-          <span>Unlock Pro Sync</span>
-        </button>
+          <Heart size={12} fill="#ec4899" color="#ec4899" />
+          <span>Sponsor</span>
+        </a>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '8px' }}>
           <button className="sidebar-action-btn" title="Minimize Window">

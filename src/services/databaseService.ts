@@ -84,6 +84,29 @@ export const DatabaseService = {
       }
     }
 
+    // If SQL is empty or whitespace, return clean empty result
+    if (!sql || !sql.trim()) {
+      return {
+        success: true,
+        columns: [],
+        rows: [],
+        rowCount: 0,
+        executionTimeMs: 0
+      };
+    }
+
+    // If no active connection configured
+    if (db.id === 'db-empty' || (!db.database && (!db.tables || db.tables.length === 0) && !db.connectionString)) {
+      return {
+        success: false,
+        columns: [],
+        rows: [],
+        rowCount: 0,
+        executionTimeMs: 0,
+        message: 'No active database connection. Please add or select a database connection first.'
+      };
+    }
+
     // Built-in Demo & In-Memory SQL Execution Engine
     await new Promise((resolve) => setTimeout(resolve, 80));
     

@@ -360,7 +360,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       >
                         <Plus size={12} />
                       </button>
-                      {collections.length > 1 && (
+                      {(
                         <button
                           onClick={() => {
                             if (confirm(`Delete collection "${col.name}"?`)) {

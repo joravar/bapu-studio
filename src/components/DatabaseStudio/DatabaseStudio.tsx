@@ -44,9 +44,7 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
   const [selectedTable, setSelectedTable] = useState<TableSchema | null>(
     activeDb.tables[0] || null
   );
-  const [sqlQuery, setSqlQuery] = useState<string>(
-    'SELECT * FROM users ORDER BY created_at DESC LIMIT 15;'
-  );
+  const [sqlQuery, setSqlQuery] = useState<string>('');
   const [isExecuting, setIsExecuting] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -86,24 +84,18 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
     };
   }, [isResizingDb]);
 
-  // Sample dynamic query results
+  // Query results state
   const [queryResult, setQueryResult] = useState<QueryResult>({
-    columns: ['id', 'email', 'organization_id', 'role', 'created_at'],
-    rows: [
-      { id: 'u_101', email: 'sarah.connor@acme.dev', organization_id: 'org_881', role: 'admin', created_at: '2026-02-10 14:22:01' },
-      { id: 'u_102', email: 'marcus.vance@stripe-integrations.io', organization_id: 'org_882', role: 'developer', created_at: '2026-02-11 09:15:30' },
-      { id: 'u_103', email: 'elena.rostova@cloudscale.net', organization_id: 'org_881', role: 'owner', created_at: '2026-02-12 18:40:12' },
-      { id: 'u_104', email: 'david.kim@fintech-ai.com', organization_id: 'org_883', role: 'developer', created_at: '2026-02-13 11:05:44' },
-      { id: 'u_105', email: 'priya.sharma@hyperloop.io', organization_id: 'org_884', role: 'billing', created_at: '2026-02-14 16:30:19' }
-    ],
-    rowCount: 5,
-    executionTimeMs: 14
+    columns: [],
+    rows: [],
+    rowCount: 0,
+    executionTimeMs: 0
   });
 
   // Auto-sync when active database changes
   useEffect(() => {
-    const firstTable = activeDb.tables[0];
-    if (firstTable) {
+    const firstTable = activeDb?.tables?.[0];
+    if (firstTable && activeDb.id !== 'db-empty') {
       setSelectedTable(firstTable);
       const query = activeDb.type === 'mongodb' 
         ? `${firstTable.name}.find({})` 
@@ -118,6 +110,15 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
             executionTimeMs: res.executionTimeMs
           });
         }
+      });
+    } else {
+      setSelectedTable(null);
+      setSqlQuery('');
+      setQueryResult({
+        columns: [],
+        rows: [],
+        rowCount: 0,
+        executionTimeMs: 0
       });
     }
   }, [activeDb.id]);
@@ -147,13 +148,14 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
   };
 
   const handleExportCsv = () => {
+    if (!queryResult.rows || queryResult.rows.length === 0) return;
     const header = queryResult.columns.join(',');
     const rows = queryResult.rows.map(r => queryResult.columns.map(col => JSON.stringify(r[col] || '')).join(','));
     const csvContent = 'data:text/csv;charset=utf-8,' + [header, ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `${activeDb.database}_query_export.csv`);
+    link.setAttribute('download', `${activeDb.name.toLowerCase().replace(/\s+/g, '_')}_export.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -202,50 +204,56 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
         )}
 
         <div className="sidebar-section-header">Tables ({activeDb.tables.length})</div>
-        {activeDb.tables.map(table => (
-          <div key={table.name} style={{ marginBottom: '8px' }}>
-            <div
-              onClick={() => {
-                setSelectedTable(table);
-                const query = activeDb.type === 'mongodb' 
-                  ? `${table.name}.find({})` 
-                  : `SELECT * FROM ${table.name} LIMIT 25;`;
-                setSqlQuery(query);
-                handleExecuteSql(query);
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '5px 8px',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                background: selectedTable?.name === table.name ? 'var(--bg-card-hover)' : 'transparent',
-                color: selectedTable?.name === table.name ? '#fff' : 'var(--text-muted)'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Table size={13} color="#60a5fa" />
-                <span style={{ fontSize: '12px', fontWeight: 500 }}>{table.name}</span>
-              </div>
-              <span style={{ fontSize: '10px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
-                {table.rowCount.toLocaleString()}
-              </span>
-            </div>
-
-            {selectedTable?.name === table.name && (
-              <div style={{ paddingLeft: '18px', marginTop: '4px' }}>
-                {table.columns.map(col => (
-                  <div key={col.name} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-dim)', padding: '2px 0' }}>
-                    {col.isPrimaryKey ? <Key size={10} color="#f59e0b" /> : <div style={{ width: '10px' }} />}
-                    <span style={{ color: col.isPrimaryKey ? 'var(--text-main)' : 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{col.name}</span>
-                    <span style={{ fontSize: '9px', color: 'var(--text-dim)' }}>{col.type}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+        {activeDb.tables.length === 0 ? (
+          <div style={{ fontSize: '11px', color: 'var(--text-dim)', padding: '12px 8px', lineHeight: 1.4, textAlign: 'center' }}>
+            {activeDb.id === 'db-empty' ? 'No database configured.' : 'No tables discovered.'}
           </div>
-        ))}
+        ) : (
+          activeDb.tables.map(table => (
+            <div key={table.name} style={{ marginBottom: '8px' }}>
+              <div
+                onClick={() => {
+                  setSelectedTable(table);
+                  const query = activeDb.type === 'mongodb' 
+                    ? `${table.name}.find({})` 
+                    : `SELECT * FROM ${table.name} LIMIT 25;`;
+                  setSqlQuery(query);
+                  handleExecuteSql(query);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '5px 8px',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer',
+                  background: selectedTable?.name === table.name ? 'var(--bg-card-hover)' : 'transparent',
+                  color: selectedTable?.name === table.name ? '#fff' : 'var(--text-muted)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Table size={13} color="#60a5fa" />
+                  <span style={{ fontSize: '12px', fontWeight: 500 }}>{table.name}</span>
+                </div>
+                <span style={{ fontSize: '10px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+                  {table.rowCount.toLocaleString()}
+                </span>
+              </div>
+
+              {selectedTable?.name === table.name && (
+                <div style={{ paddingLeft: '18px', marginTop: '4px' }}>
+                  {table.columns.map(col => (
+                    <div key={col.name} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-dim)', padding: '2px 0' }}>
+                      {col.isPrimaryKey ? <Key size={10} color="#f59e0b" /> : <div style={{ width: '10px' }} />}
+                      <span style={{ color: col.isPrimaryKey ? 'var(--text-main)' : 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{col.name}</span>
+                      <span style={{ fontSize: '9px', color: 'var(--text-dim)' }}>{col.type}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
+        )}
       </aside>
 
       {/* Vertical Resize Handle between Schema Browser and Main Query Pane */}
@@ -279,45 +287,38 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
             spellCheck={false}
             placeholder={activeDb.type === 'mongodb' 
               ? 'Write MongoDB JSON query or MQL (e.g. { "status": "active" } or users.find({}))'
-              : 'Write SQL query here... (e.g. SELECT * FROM users;) • Press Ctrl+Enter to run'}
+              : 'Write SQL query here... (e.g. SELECT * FROM table;) • Press Ctrl+Enter to run'}
           />
 
           <div className="sql-actions-bar">
             <div style={{ display: 'flex', gap: '6px' }}>
-              {activeDb.type === 'mongodb' ? (
-                <>
+              {selectedTable && (
+                activeDb.type === 'mongodb' ? (
                   <button 
-                    onClick={() => setSqlQuery('{}')}
+                    onClick={() => setSqlQuery(`${selectedTable.name}.find({})`)}
                     className="btn-secondary"
                     style={{ fontSize: '11px', padding: '3px 8px' }}
                   >
-                    Find All ({'{}'})
+                    Find All ({selectedTable.name})
                   </button>
-                  <button 
-                    onClick={() => setSqlQuery('users.find({ "status": "active" })')}
-                    className="btn-secondary"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
-                  >
-                    Find Active Users
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button 
-                    onClick={() => setSqlQuery('SELECT * FROM users ORDER BY created_at DESC LIMIT 20;')}
-                    className="btn-secondary"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
-                  >
-                    SELECT * Users
-                  </button>
-                  <button 
-                    onClick={() => setSqlQuery('SELECT COUNT(*), role FROM users GROUP BY role;')}
-                    className="btn-secondary"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
-                  >
-                    Count by Role
-                  </button>
-                </>
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => setSqlQuery(`SELECT * FROM ${selectedTable.name} LIMIT 20;`)}
+                      className="btn-secondary"
+                      style={{ fontSize: '11px', padding: '3px 8px' }}
+                    >
+                      SELECT * {selectedTable.name}
+                    </button>
+                    <button 
+                      onClick={() => setSqlQuery(`SELECT COUNT(*) FROM ${selectedTable.name};`)}
+                      className="btn-secondary"
+                      style={{ fontSize: '11px', padding: '3px 8px' }}
+                    >
+                      Count ({selectedTable.name})
+                    </button>
+                  </>
+                )
               )}
             </div>
 
@@ -393,26 +394,37 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
 
         {/* Data Results Grid */}
         <div className="data-grid-container">
-          <table className="data-grid-table">
-            <thead>
-              <tr>
-                {queryResult.columns.map(col => (
-                  <th key={col}>{col}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.map((row, rIdx) => (
-                <tr key={rIdx}>
+          {queryResult.columns.length === 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-dim)', gap: '8px', padding: '40px' }}>
+              <Database size={24} style={{ opacity: 0.3 }} />
+              <span style={{ fontSize: '12px' }}>
+                {activeDb.id === 'db-empty'
+                  ? 'No database connected. Add a connection in the sidebar or drop a SQLite file.'
+                  : 'Write a query and press Run Query (F5) to view results'}
+              </span>
+            </div>
+          ) : (
+            <table className="data-grid-table">
+              <thead>
+                <tr>
                   {queryResult.columns.map(col => (
-                    <td key={col}>
-                      {String(row[col] ?? 'NULL')}
-                    </td>
+                    <th key={col}>{col}</th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredRows.map((row, rIdx) => (
+                  <tr key={rIdx}>
+                    {queryResult.columns.map(col => (
+                      <td key={col}>
+                        {String(row[col] ?? 'NULL')}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
