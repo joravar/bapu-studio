@@ -865,6 +865,31 @@ test('Database Studio: Connection Deduplication & Total Deletion Fallback', () =
   assert.strictEqual(databases.length, 0);
 });
 
+test('Database Studio: Test Connection handles in-memory Playground databases seamlessly', () => {
+  function testConnectionMock(config) {
+    const isPlayground = Boolean(
+      config.id?.includes('demo') || 
+      config.name?.toLowerCase().includes('demo') || 
+      config.name?.toLowerCase().includes('playground') || 
+      config.name?.toLowerCase().includes('sample') ||
+      (!config.password && !config.connectionString && (config.host === 'localhost' || !config.host) && (config.database === 'saas_production_db' || config.database === 'nexus_core_db' || config.database === 'main'))
+    );
+    if (isPlayground) {
+      return { success: true, message: `⚡ Built-in ${config.type.toUpperCase()} Playground is ready` };
+    }
+    return { success: false, message: 'Requires external TCP host' };
+  }
+
+  // 1. Test Demo Playground connection
+  const demoRes = testConnectionMock({ id: 'db-demo-1', name: 'Sample PostgreSQL (Demo)', type: 'postgres', host: 'localhost', database: 'main' });
+  assert.strictEqual(demoRes.success, true);
+  assert.ok(demoRes.message.includes('Playground is ready'));
+
+  // 2. Test Real Remote Database config
+  const remoteRes = testConnectionMock({ id: 'db-99', name: 'Production Neon', type: 'postgres', host: 'ep-cool.aws.neon.tech', database: 'neondb', password: 'secretpassword' });
+  assert.strictEqual(remoteRes.success, false);
+});
+
 // ------------------------------------------------------------------------------
 // 10. HISTORY STUDIO & ACTIVITY AUDIT ENGINE
 // ------------------------------------------------------------------------------

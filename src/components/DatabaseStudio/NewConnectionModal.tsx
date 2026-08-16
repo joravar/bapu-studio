@@ -205,6 +205,8 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
     setTestResult(null);
 
     const config = {
+      id: initialConnection?.id || (name.toLowerCase().includes('demo') || name.toLowerCase().includes('playground') ? 'db-demo' : `db-${Date.now()}`),
+      name: name.trim(),
       type,
       host,
       port,
