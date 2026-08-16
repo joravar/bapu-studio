@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Send, 
   Copy, 
@@ -46,6 +46,44 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
   const [isCodeModalOpen, setIsCodeModalOpen] = useState(false);
   const [isCurlModalOpen, setIsCurlModalOpen] = useState(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+
+  // Resizable split ratio between Request and Response panels
+  const [splitPct, setSplitPct] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('bapu_api_split_pct');
+      if (saved) return Math.max(20, Math.min(80, Number(saved)));
+    } catch {}
+    return 50;
+  });
+  const [isResizingSplit, setIsResizingSplit] = useState(false);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isResizingSplit) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!splitContainerRef.current) return;
+      const rect = splitContainerRef.current.getBoundingClientRect();
+      const currentX = e.clientX - rect.left;
+      const pct = Math.max(20, Math.min(80, (currentX / rect.width) * 100));
+      setSplitPct(pct);
+      try {
+        localStorage.setItem('bapu_api_split_pct', String(pct));
+      } catch {}
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingSplit(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizingSplit]);
+
   const [response, setResponse] = useState<ApiResponse | null>(() => {
     const initialRes: ApiResponse = {
       status: 200,
@@ -301,9 +339,16 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
       </div>
 
       {/* Split Pane: Request Builder (Left) & Response Inspector (Right) */}
-      <div className="split-workspace-pane">
+      <div 
+        ref={splitContainerRef}
+        className="split-workspace-pane"
+        style={{ userSelect: isResizingSplit ? 'none' : 'auto' }}
+      >
         {/* Left: Request Configuration */}
-        <div className="request-config-panel">
+        <div 
+          className="request-config-panel"
+          style={{ width: `${splitPct}%`, flex: 'none', borderRight: 'none' }}
+        >
           <div className="panel-tab-header">
             <div className="panel-tabs">
               <button 
@@ -695,8 +740,22 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
           </div>
         </div>
 
+        {/* Vertical Resize Handle between Request and Response */}
+        <div
+          className={`pane-resizer-vertical ${isResizingSplit ? 'resizing' : ''}`}
+          onMouseDown={() => setIsResizingSplit(true)}
+          onDoubleClick={() => {
+            setSplitPct(50);
+            localStorage.setItem('bapu_api_split_pct', '50');
+          }}
+          title="Drag to resize Request / Response panels • Double-click to reset (50%)"
+        />
+
         {/* Right: Response Inspector */}
-        <div className="response-viewer-panel">
+        <div 
+          className="response-viewer-panel"
+          style={{ width: `${100 - splitPct}%`, flex: 1 }}
+        >
           <div className="panel-tab-header">
             <div className="panel-tabs">
               <button 

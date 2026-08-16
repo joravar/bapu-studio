@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Play, 
   Table, 
@@ -44,6 +44,40 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
   const [isExecuting, setIsExecuting] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+
+  // Resizable schema sidebar state
+  const [dbSidebarWidth, setDbSidebarWidth] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('bapu_db_sidebar_width');
+      if (saved) return Math.max(160, Math.min(480, Number(saved)));
+    } catch {}
+    return 220;
+  });
+  const [isResizingDb, setIsResizingDb] = useState(false);
+
+  useEffect(() => {
+    if (!isResizingDb) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // Calculate based on clientX offset from window left
+      const newWidth = Math.max(160, Math.min(480, e.clientX - 260));
+      setDbSidebarWidth(newWidth);
+      try {
+        localStorage.setItem('bapu_db_sidebar_width', String(newWidth));
+      } catch {}
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingDb(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizingDb]);
 
   // Sample dynamic query results
   const [queryResult, setQueryResult] = useState<QueryResult>({
@@ -103,9 +137,12 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
   });
 
   return (
-    <div className="db-layout">
+    <div className="db-layout" style={{ userSelect: isResizingDb ? 'none' : 'auto' }}>
       {/* Left Database Schema Browser */}
-      <aside className="db-schema-sidebar">
+      <aside 
+        className="db-schema-sidebar"
+        style={{ width: `${dbSidebarWidth}px`, flexShrink: 0, borderRight: 'none' }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
           <Database size={15} color="#10b981" />
           <span style={{ fontWeight: 700, fontSize: '12px' }}>{activeDb.database}</span>
@@ -158,6 +195,17 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
           </div>
         ))}
       </aside>
+
+      {/* Vertical Resize Handle between Schema Browser and Main Query Pane */}
+      <div
+        className={`pane-resizer-vertical ${isResizingDb ? 'resizing' : ''}`}
+        onMouseDown={() => setIsResizingDb(true)}
+        onDoubleClick={() => {
+          setDbSidebarWidth(220);
+          localStorage.setItem('bapu_db_sidebar_width', '220');
+        }}
+        title="Drag to resize schema browser • Double-click to reset (220px)"
+      />
 
       {/* Main SQL / Mongo Console & Results Pane */}
       <div className="db-main-pane">

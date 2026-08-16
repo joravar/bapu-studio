@@ -280,6 +280,39 @@ export const App: React.FC = () => {
     setHistory(prev => [newItem, ...prev.slice(0, 20)]);
   };
 
+  // Resizable sidebar state
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('bapu_sidebar_width');
+      if (saved) return Math.max(180, Math.min(500, Number(saved)));
+    } catch {}
+    return 260;
+  });
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+
+  useEffect(() => {
+    if (!isResizingSidebar) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = Math.max(180, Math.min(520, e.clientX));
+      setSidebarWidth(newWidth);
+      try {
+        localStorage.setItem('bapu_sidebar_width', String(newWidth));
+      } catch {}
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingSidebar(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizingSidebar]);
+
   return (
     <div className="nexus-app-container">
       {/* Top Application Header */}
@@ -291,35 +324,48 @@ export const App: React.FC = () => {
       />
 
       {/* Main App Cockpit */}
-      <div className="nexus-body-layout">
-        {/* Sidebar Nav */}
-        <Sidebar
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          collections={collections}
-          activeRequest={activeRequest}
-          onSelectRequest={(req) => {
-            setActiveRequest(req);
-            setActiveTab('api');
+      <div className="nexus-body-layout" style={{ userSelect: isResizingSidebar ? 'none' : 'auto' }}>
+        {/* Sidebar Nav with dynamic resizable width */}
+        <div style={{ width: `${sidebarWidth}px`, height: '100%', flexShrink: 0 }}>
+          <Sidebar
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            collections={collections}
+            activeRequest={activeRequest}
+            onSelectRequest={(req) => {
+              setActiveRequest(req);
+              setActiveTab('api');
+            }}
+            onNewRequest={handleNewRequest}
+            onAddCollection={handleAddCollection}
+            onDeleteCollection={handleDeleteCollection}
+            onNewRequestInCollection={handleNewRequestInCollection}
+            onDeleteRequest={handleDeleteRequest}
+            onReorderCollections={handleReorderCollections}
+            onReorderRequests={handleReorderRequests}
+            onMoveRequest={handleMoveRequest}
+            databases={databases}
+            activeDb={activeDb}
+            onSelectDb={(db) => {
+              setActiveDb(db);
+              setActiveTab('db');
+            }}
+            onAddDatabase={handleAddDatabase}
+            onDeleteDatabase={handleDeleteDatabase}
+            onReorderDatabases={handleReorderDatabases}
+            history={history}
+          />
+        </div>
+
+        {/* Vertical Resize Handle for Sidebar */}
+        <div
+          className={`pane-resizer-vertical ${isResizingSidebar ? 'resizing' : ''}`}
+          onMouseDown={() => setIsResizingSidebar(true)}
+          onDoubleClick={() => {
+            setSidebarWidth(260);
+            localStorage.setItem('bapu_sidebar_width', '260');
           }}
-          onNewRequest={handleNewRequest}
-          onAddCollection={handleAddCollection}
-          onDeleteCollection={handleDeleteCollection}
-          onNewRequestInCollection={handleNewRequestInCollection}
-          onDeleteRequest={handleDeleteRequest}
-          onReorderCollections={handleReorderCollections}
-          onReorderRequests={handleReorderRequests}
-          onMoveRequest={handleMoveRequest}
-          databases={databases}
-          activeDb={activeDb}
-          onSelectDb={(db) => {
-            setActiveDb(db);
-            setActiveTab('db');
-          }}
-          onAddDatabase={handleAddDatabase}
-          onDeleteDatabase={handleDeleteDatabase}
-          onReorderDatabases={handleReorderDatabases}
-          history={history}
+          title="Drag to resize sidebar • Double-click to reset (260px)"
         />
 
         {/* Main Central Workspace */}
