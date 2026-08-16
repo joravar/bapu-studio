@@ -9,11 +9,13 @@ import {
   Check, 
   Layers,
   Database,
-  Search
+  Search,
+  Settings
 } from 'lucide-react';
 import { DatabaseConnection, TableSchema } from '../../types';
 import { SqliteDropZone } from './SqliteDropZone';
 import { AiCopilotModal } from '../AiCopilot/AiCopilotModal';
+import { NewConnectionModal } from './NewConnectionModal';
 import { DatabaseService } from '../../services/databaseService';
 
 interface DatabaseStudioProps {
@@ -21,6 +23,7 @@ interface DatabaseStudioProps {
   onRecordHistory: (title: string, subtitle: string, status?: number) => void;
   onDatabaseLoaded?: (db: DatabaseConnection) => void;
   onRenameDatabase?: (dbId: string, newName: string) => void;
+  onUpdateDatabase?: (db: DatabaseConnection) => void;
 }
 
 interface QueryResult {
@@ -35,7 +38,8 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
   activeDb,
   onRecordHistory,
   onDatabaseLoaded,
-  onRenameDatabase
+  onRenameDatabase,
+  onUpdateDatabase
 }) => {
   const [selectedTable, setSelectedTable] = useState<TableSchema | null>(
     activeDb.tables[0] || null
@@ -46,6 +50,7 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
   const [isExecuting, setIsExecuting] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // Resizable schema sidebar state
   const [dbSidebarWidth, setDbSidebarWidth] = useState<number>(() => {
@@ -181,6 +186,14 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
             style={{ fontSize: '12px', fontWeight: 700, padding: '2px 6px', width: '100%', minWidth: '100px' }}
             title="Click to rename connection"
           />
+          <button
+            onClick={() => setIsEditModalOpen(true)}
+            className="sidebar-action-btn"
+            title="Edit Database Connection Parameters & Credentials"
+            style={{ padding: '4px', flexShrink: 0 }}
+          >
+            <Settings size={13} color="var(--text-muted)" />
+          </button>
         </div>
 
         {/* Local SQLite Drag and Drop Zone */}
@@ -409,6 +422,17 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
         onClose={() => setIsAiModalOpen(false)}
         onApplySql={(generatedSql) => {
           setSqlQuery(generatedSql);
+        }}
+      />
+
+      {/* Edit Connection Configuration Modal */}
+      <NewConnectionModal
+        isOpen={isEditModalOpen}
+        initialConnection={activeDb}
+        onClose={() => setIsEditModalOpen(false)}
+        onConnect={(updatedDb) => {
+          if (onUpdateDatabase) onUpdateDatabase(updatedDb);
+          setIsEditModalOpen(false);
         }}
       />
     </div>

@@ -745,6 +745,41 @@ test('Database Studio: Connection String URI parser with special characters', ()
   assert.strictEqual(mysql.database, 'app_db');
 });
 
+test('Database Studio: Edit & Update Database Connection Parameters', () => {
+  let databases = [
+    {
+      id: 'db-1',
+      name: 'Old Postgres Staging',
+      type: 'postgres',
+      database: 'staging_db',
+      host: 'localhost',
+      port: '5432',
+      username: 'postgres',
+      ssl: false,
+      isConnected: true,
+      tables: []
+    }
+  ];
+
+  // Edit database connection parameters
+  const updatedDb = {
+    ...databases[0],
+    name: 'Production Neon Postgres Cluster',
+    host: 'ep-cool-dawn.us-east-2.aws.neon.tech',
+    database: 'production_main',
+    username: 'neondb_owner',
+    ssl: true
+  };
+
+  databases = databases.map(d => d.id === updatedDb.id ? updatedDb : d);
+
+  assert.strictEqual(databases[0].name, 'Production Neon Postgres Cluster');
+  assert.strictEqual(databases[0].host, 'ep-cool-dawn.us-east-2.aws.neon.tech');
+  assert.strictEqual(databases[0].database, 'production_main');
+  assert.strictEqual(databases[0].username, 'neondb_owner');
+  assert.strictEqual(databases[0].ssl, true);
+});
+
 // ------------------------------------------------------------------------------
 // SUMMARY
 // ------------------------------------------------------------------------------

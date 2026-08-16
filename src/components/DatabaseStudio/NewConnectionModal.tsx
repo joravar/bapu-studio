@@ -7,6 +7,7 @@ interface NewConnectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConnect: (connection: DatabaseConnection) => void;
+  initialConnection?: DatabaseConnection | null;
 }
 
 type DbType = 'postgres' | 'mysql' | 'mongodb' | 'sqlite' | 'redis';
@@ -104,7 +105,8 @@ export function parseDatabaseUri(uri: string): {
 export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
   isOpen,
   onClose,
-  onConnect
+  onConnect,
+  initialConnection
 }) => {
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>('uri');
   const [name, setName] = useState('Production PostgreSQL (Neon)');
@@ -118,6 +120,33 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
   const [ssl, setSsl] = useState(true);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  React.useEffect(() => {
+    if (initialConnection) {
+      setName(initialConnection.name);
+      setType(initialConnection.type);
+      setConnectionString(initialConnection.connectionString || '');
+      setHost((initialConnection as any).host || 'localhost');
+      setPort((initialConnection as any).port || (initialConnection.type === 'postgres' ? '5432' : '3306'));
+      setDatabase(initialConnection.database || 'main');
+      setUsername((initialConnection as any).username || '');
+      setPassword((initialConnection as any).password || '');
+      setSsl((initialConnection as any).ssl !== false);
+      setConnectionMode(initialConnection.connectionString ? 'uri' : 'params');
+    } else {
+      setName('New PostgreSQL Connection');
+      setType('postgres');
+      setConnectionString('');
+      setHost('ep-cool-dawn-123456.us-east-2.aws.neon.tech');
+      setPort('5432');
+      setDatabase('neondb');
+      setUsername('alex');
+      setPassword('');
+      setSsl(true);
+      setConnectionMode('uri');
+    }
+    setTestResult(null);
+  }, [initialConnection, isOpen]);
 
   if (!isOpen) return null;
 
@@ -215,13 +244,13 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
         };
 
     const dbConfig: DatabaseConnection = {
-      id: `db-${Date.now()}`,
+      id: initialConnection ? initialConnection.id : `db-${Date.now()}`,
       name: name.trim(),
       type,
       database: database.trim() || (type === 'mongodb' ? 'test' : 'main'),
       connectionString: connectionString.trim() || undefined,
       isConnected: true,
-      tables: [defaultTable]
+      tables: initialConnection?.tables && initialConnection.tables.length > 0 ? initialConnection.tables : [defaultTable]
     };
 
     // Attach credentials for native drivers
@@ -256,7 +285,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Database size={20} color="#10b981" />
             <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#fff' }}>
-              Add Database Connection
+              {initialConnection ? `Edit Database: ${initialConnection.name}` : 'Add Database Connection'}
             </h2>
           </div>
 
@@ -265,17 +294,18 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
           </button>
         </div>
 
-        {/* Instant Demo Sandbox Banner */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(59, 130, 246, 0.08))',
-          border: '1px solid rgba(16, 185, 129, 0.3)',
-          borderRadius: 'var(--radius-md)',
-          padding: '10px 14px',
-          marginBottom: '16px'
-        }}>
+        {/* Instant Demo Sandbox Banner (Only shown when adding new DB) */}
+        {!initialConnection && (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(59, 130, 246, 0.08))',
+            border: '1px solid rgba(16, 185, 129, 0.3)',
+            borderRadius: 'var(--radius-md)',
+            padding: '10px 14px',
+            marginBottom: '16px'
+          }}>
           <div>
             <div style={{ fontSize: '12px', fontWeight: 600, color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Sparkles size={13} />
@@ -341,6 +371,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
             ⚡ Load Playground
           </button>
         </div>
+      )}
 
         {/* Mode Selector Tabs: Connection URI vs Individual Parameters */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', background: 'var(--bg-input)', padding: '3px', borderRadius: 'var(--radius-md)' }}>
@@ -627,7 +658,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
               </button>
               <button type="submit" className="btn-send" style={{ padding: '8px 18px' }}>
                 <Check size={14} />
-                <span>Save & Connect</span>
+                <span>{initialConnection ? 'Update Connection' : 'Save & Connect'}</span>
               </button>
             </div>
           </div>

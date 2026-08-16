@@ -199,6 +199,14 @@ export const App: React.FC = () => {
     handleRecordHistory(`Connected: ${newDb.name}`, `${newDb.type.toUpperCase()} • ${newDb.database}`);
   };
 
+  const handleUpdateDatabase = (updatedDb: DatabaseConnection) => {
+    setDatabases(prev => prev.map(d => d.id === updatedDb.id ? updatedDb : d));
+    if (activeDb.id === updatedDb.id) {
+      setActiveDb(updatedDb);
+    }
+    handleRecordHistory(`Updated DB: ${updatedDb.name}`, `${updatedDb.type.toUpperCase()} • ${updatedDb.database}`);
+  };
+
   const handleDeleteDatabase = (dbId: string) => {
     setDatabases(prev => {
       const remaining = prev.filter(d => d.id !== dbId);
@@ -413,6 +421,7 @@ export const App: React.FC = () => {
               setActiveTab('db');
             }}
             onAddDatabase={handleAddDatabase}
+            onUpdateDatabase={handleUpdateDatabase}
             onDeleteDatabase={handleDeleteDatabase}
             onRenameDatabase={handleRenameDatabase}
             onReorderDatabases={handleReorderDatabases}
@@ -495,6 +504,7 @@ export const App: React.FC = () => {
                 activeDb={activeDb}
                 onRecordHistory={handleRecordHistory}
                 onRenameDatabase={handleRenameDatabase}
+                onUpdateDatabase={handleUpdateDatabase}
                 onDatabaseLoaded={(newDb) => {
                   setDatabases(prev => [newDb, ...prev]);
                   setActiveDb(newDb);

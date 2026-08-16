@@ -16,7 +16,8 @@ import {
   Upload,
   Download,
   FolderDown,
-  Edit3
+  Edit3,
+  Settings
 } from 'lucide-react';
 import { Collection, ApiRequest, DatabaseConnection, HistoryItem, Environment, KeyValuePair } from '../types';
 import { NewCollectionModal } from './ApiStudio/NewCollectionModal';
@@ -46,6 +47,7 @@ interface SidebarProps {
   activeDb: DatabaseConnection | null;
   onSelectDb: (db: DatabaseConnection) => void;
   onAddDatabase: (db: DatabaseConnection) => void;
+  onUpdateDatabase?: (db: DatabaseConnection) => void;
   onDeleteDatabase: (dbId: string) => void;
   onRenameDatabase?: (dbId: string, newName: string) => void;
   onReorderDatabases?: (sourceIndex: number, destIndex: number) => void;
@@ -79,6 +81,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeDb,
   onSelectDb,
   onAddDatabase,
+  onUpdateDatabase,
   onDeleteDatabase,
   onRenameDatabase,
   onReorderDatabases,
@@ -92,6 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [isNewColModalOpen, setIsNewColModalOpen] = useState(false);
   const [isNewDbModalOpen, setIsNewDbModalOpen] = useState(false);
+  const [editingDbConfig, setEditingDbConfig] = useState<DatabaseConnection | null>(null);
   const [isNewEnvModalOpen, setIsNewEnvModalOpen] = useState(false);
   const [newEnvName, setNewEnvName] = useState('');
   const [isImportExportModalOpen, setIsImportExportModalOpen] = useState(false);
@@ -648,6 +652,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        setEditingDbConfig(db);
+                        setIsNewDbModalOpen(true);
+                      }}
+                      className="sidebar-action-btn"
+                      title={`Edit connection parameters for "${db.name}"`}
+                      style={{ opacity: isSelected ? 1 : 0.6 }}
+                    >
+                      <Settings size={11} color="var(--text-dim)" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setEditingDbId(db.id);
                         setEditingDbName(db.name);
                       }}
@@ -950,12 +966,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onCreate={onAddCollection}
       />
 
-      {/* New Database Connection Modal */}
+      {/* Database Connection Modal (Create & Edit) */}
       <NewConnectionModal
         isOpen={isNewDbModalOpen}
-        onClose={() => setIsNewDbModalOpen(false)}
-        onConnect={(newDb) => {
-          onAddDatabase(newDb);
+        initialConnection={editingDbConfig}
+        onClose={() => {
+          setIsNewDbModalOpen(false);
+          setEditingDbConfig(null);
+        }}
+        onConnect={(savedDb) => {
+          if (editingDbConfig && onUpdateDatabase) {
+            onUpdateDatabase(savedDb);
+          } else {
+            onAddDatabase(savedDb);
+          }
+          setEditingDbConfig(null);
         }}
       />
 
