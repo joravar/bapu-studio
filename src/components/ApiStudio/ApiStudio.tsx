@@ -961,28 +961,60 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
                 /* Console Log Viewer */
                 <div style={{ padding: '16px', fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
                   {response.consoleLogs && response.consoleLogs.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {response.consoleLogs.map((log, idx) => (
-                        <div
-                          key={idx}
-                          style={{
-                            padding: '6px 10px',
-                            background: '#0d1117',
-                            border: '1px solid var(--border-subtle)',
-                            borderRadius: '4px',
-                            color: log.includes('[ERROR]') ? '#f87171' : (log.includes('[WARN]') ? '#fbbf24' : '#38bdf8'),
-                            whiteSpace: 'pre-wrap'
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
+                          Console Output ({response.consoleLogs.length} entries)
+                        </span>
+                        <button
+                          onClick={() => {
+                            if (response) {
+                              setResponse({ ...response, consoleLogs: [] });
+                            }
                           }}
+                          className="btn-secondary"
+                          style={{ fontSize: '10px', padding: '2px 8px' }}
                         >
-                          <span style={{ color: 'var(--text-dim)', marginRight: '8px', fontSize: '10px' }}>&gt;</span>
-                          {log}
-                        </div>
-                      ))}
+                          Clear Output
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {response.consoleLogs.map((log, idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              padding: '6px 10px',
+                              background: '#0d1117',
+                              border: '1px solid var(--border-subtle)',
+                              borderRadius: '4px',
+                              color: log.includes('[ERROR]') ? '#f87171' : (log.includes('[WARN]') ? '#fbbf24' : '#38bdf8'),
+                              whiteSpace: 'pre-wrap'
+                            }}
+                          >
+                            <span style={{ color: 'var(--text-dim)', marginRight: '8px', fontSize: '10px' }}>&gt;</span>
+                            {log}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ) : (
-                    <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)' }}>
-                      <p style={{ fontSize: '13px' }}>No console logs recorded.</p>
-                      <p style={{ fontSize: '11px', marginTop: '4px' }}>Use <code>console.log(...)</code> inside your Pre-request or Test scripts to log values here.</p>
+                    <div style={{ textAlign: 'center', padding: '36px 20px', color: 'var(--text-dim)' }}>
+                      <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No console logs recorded for this run.</p>
+                      <p style={{ fontSize: '11px', marginTop: '6px', color: 'var(--text-dim)' }}>
+                        Add <code>console.log(data)</code> or <code>bapu.log("message")</code> in your <strong>⚡ Pre-request</strong> or <strong>🧪 Tests</strong> tab.
+                      </p>
+                      <button
+                        onClick={() => {
+                          const cur = activeRequest.testScript || activeRequest.tests || '';
+                          const snippet = `\nconsole.log("Status Code:", bapu.response.status);\nconsole.log("Response Time:", bapu.response.timeMs + "ms");\nconsole.log("Data:", bapu.response.json());\n`;
+                          onUpdateRequest({ ...activeRequest, testScript: cur + snippet, tests: cur + snippet });
+                          setActiveSubTab('tests');
+                        }}
+                        className="btn-secondary"
+                        style={{ fontSize: '11px', marginTop: '12px' }}
+                      >
+                        + Insert Quick Logger to Tests Tab
+                      </button>
                     </div>
                   )}
                 </div>

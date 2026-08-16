@@ -172,15 +172,33 @@ export function executePreRequestScript(
     varMap[v.key] = v.value;
   });
 
+  const formatLog = (...args: any[]): string => {
+    const time = new Date().toLocaleTimeString();
+    const formatted = args.map(a => {
+      if (typeof a === 'object') {
+        try {
+          return JSON.stringify(a, null, 2);
+        } catch {
+          return String(a);
+        }
+      }
+      return String(a);
+    }).join(' ');
+    return `[${time}] ${formatted}`;
+  };
+
   const customConsole = {
     log: (...args: any[]) => {
-      logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+      logs.push(formatLog(...args));
+    },
+    info: (...args: any[]) => {
+      logs.push(formatLog(...args));
     },
     warn: (...args: any[]) => {
-      logs.push(`[WARN] ` + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+      logs.push(formatLog('[WARN]', ...args));
     },
     error: (...args: any[]) => {
-      logs.push(`[ERROR] ` + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+      logs.push(formatLog('[ERROR]', ...args));
     }
   };
 
@@ -203,12 +221,13 @@ export function executePreRequestScript(
     method: request.method,
     headers: {
       add: (headerObj: { key: string; value: string }) => {
-        logs.push(`Header added via script: ${headerObj.key}: ${headerObj.value}`);
+        logs.push(formatLog(`Header added via script: ${headerObj.key}: ${headerObj.value}`));
       }
     }
   };
 
   const bapu = {
+    log: customConsole.log,
     env: envApi,
     environment: envApi,
     variables: envApi,
@@ -216,6 +235,7 @@ export function executePreRequestScript(
   };
 
   const pm = {
+    log: customConsole.log,
     environment: envApi,
     variables: envApi,
     request: reqObj
@@ -260,15 +280,33 @@ export function executeTestScript(
     varMap[v.key] = v.value;
   });
 
+  const formatLog = (...args: any[]): string => {
+    const time = new Date().toLocaleTimeString();
+    const formatted = args.map(a => {
+      if (typeof a === 'object') {
+        try {
+          return JSON.stringify(a, null, 2);
+        } catch {
+          return String(a);
+        }
+      }
+      return String(a);
+    }).join(' ');
+    return `[${time}] ${formatted}`;
+  };
+
   const customConsole = {
     log: (...args: any[]) => {
-      logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+      logs.push(formatLog(...args));
+    },
+    info: (...args: any[]) => {
+      logs.push(formatLog(...args));
     },
     warn: (...args: any[]) => {
-      logs.push(`[WARN] ` + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+      logs.push(formatLog('[WARN]', ...args));
     },
     error: (...args: any[]) => {
-      logs.push(`[ERROR] ` + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+      logs.push(formatLog('[ERROR]', ...args));
     }
   };
 
@@ -348,6 +386,7 @@ export function executeTestScript(
   const bapu = {
     test,
     expect: createExpect,
+    log: customConsole.log,
     env: envApi,
     environment: envApi,
     variables: envApi,
@@ -363,6 +402,7 @@ export function executeTestScript(
   const pm = {
     test,
     expect: createExpect,
+    log: customConsole.log,
     environment: envApi,
     variables: envApi,
     response: responseProxy,
@@ -376,6 +416,7 @@ export function executeTestScript(
       'test',
       'expect',
       'console',
+      'log',
       'response',
       'res',
       'env',
@@ -388,6 +429,7 @@ export function executeTestScript(
       test,
       createExpect,
       customConsole,
+      customConsole.log,
       responseProxy,
       responseProxy,
       envApi,
