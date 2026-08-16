@@ -194,7 +194,13 @@ export const App: React.FC = () => {
   };
 
   const handleAddDatabase = (newDb: DatabaseConnection) => {
-    setDatabases(prev => [newDb, ...prev]);
+    setDatabases(prev => {
+      const exists = prev.some(d => d.id === newDb.id);
+      if (exists) {
+        return prev.map(d => d.id === newDb.id ? newDb : d);
+      }
+      return [newDb, ...prev];
+    });
     setActiveDb(newDb);
     setActiveTab('db');
     handleRecordHistory(`Connected: ${newDb.name}`, `${newDb.type.toUpperCase()} • ${newDb.database}`);
@@ -202,7 +208,7 @@ export const App: React.FC = () => {
 
   const handleUpdateDatabase = (updatedDb: DatabaseConnection) => {
     setDatabases(prev => prev.map(d => d.id === updatedDb.id ? updatedDb : d));
-    if (activeDb.id === updatedDb.id) {
+    if (activeDb?.id === updatedDb.id) {
       setActiveDb(updatedDb);
     }
     handleRecordHistory(`Updated DB: ${updatedDb.name}`, `${updatedDb.type.toUpperCase()} • ${updatedDb.database}`);
@@ -228,8 +234,32 @@ export const App: React.FC = () => {
   const handleDeleteDatabase = (dbId: string) => {
     setDatabases(prev => {
       const remaining = prev.filter(d => d.id !== dbId);
-      if (activeDb.id === dbId && remaining.length > 0) {
-        setActiveDb(remaining[0]);
+      if (activeDb?.id === dbId) {
+        if (remaining.length > 0) {
+          setActiveDb(remaining[0]);
+        } else {
+          // If all user databases are deleted, create a clean default demo DB
+          const fallbackDb: DatabaseConnection = {
+            id: `db-demo-${Date.now()}`,
+            name: 'Sample PostgreSQL (Demo)',
+            type: 'postgres',
+            database: 'main',
+            isConnected: true,
+            tables: [
+              {
+                name: 'users',
+                rowCount: 50,
+                columns: [
+                  { name: 'id', type: 'UUID', isPrimaryKey: true, isNullable: false },
+                  { name: 'email', type: 'VARCHAR(255)', isPrimaryKey: false, isNullable: false },
+                  { name: 'role', type: 'VARCHAR(50)', isPrimaryKey: false, isNullable: false }
+                ]
+              }
+            ]
+          };
+          setActiveDb(fallbackDb);
+          return [fallbackDb];
+        }
       }
       return remaining;
     });

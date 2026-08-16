@@ -682,20 +682,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     >
                       <Edit3 size={11} color="var(--text-dim)" />
                     </button>
-                    {databases.length > 1 && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm(`Remove database connection "${db.name}"?`)) {
-                            onDeleteDatabase(db.id);
-                          }
-                        }}
-                        className="sidebar-action-btn"
-                        title="Remove Connection"
-                      >
-                        <Trash2 size={11} />
-                      </button>
-                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`Remove database connection "${db.name}"?`)) {
+                          onDeleteDatabase(db.id);
+                        }
+                      }}
+                      className="sidebar-action-btn"
+                      title="Remove Connection"
+                    >
+                      <Trash2 size={11} />
+                    </button>
                   </div>
                 </div>
               );

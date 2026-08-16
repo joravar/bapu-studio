@@ -836,6 +836,35 @@ test('Database Studio: Edit & Update Database Connection Parameters', () => {
   assert.strictEqual(databases[0].ssl, true);
 });
 
+test('Database Studio: Connection Deduplication & Total Deletion Fallback', () => {
+  let databases = [];
+
+  const handleAdd = (newDb) => {
+    const exists = databases.some(d => d.id === newDb.id);
+    if (exists) {
+      databases = databases.map(d => d.id === newDb.id ? newDb : d);
+    } else {
+      databases = [newDb, ...databases];
+    }
+  };
+
+  const newConn = { id: 'db-mysql-1', name: 'UCSC Genome MySQL', type: 'mysql', database: 'hg38', tables: [] };
+  
+  // 1. First connect event
+  handleAdd(newConn);
+  assert.strictEqual(databases.length, 1);
+
+  // 2. Async schema resolve event (same ID with tables populated)
+  handleAdd({ ...newConn, tables: [{ name: 'chromInfo', rowCount: 595, columns: [] }] });
+  // Must NOT duplicate the database!
+  assert.strictEqual(databases.length, 1);
+  assert.strictEqual(databases[0].tables.length, 1);
+
+  // 3. Delete the database
+  databases = databases.filter(d => d.id !== 'db-mysql-1');
+  assert.strictEqual(databases.length, 0);
+});
+
 // ------------------------------------------------------------------------------
 // 10. HISTORY STUDIO & ACTIVITY AUDIT ENGINE
 // ------------------------------------------------------------------------------
