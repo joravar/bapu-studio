@@ -18,7 +18,7 @@ import {
   FolderDown,
   Edit3
 } from 'lucide-react';
-import { Collection, ApiRequest, DatabaseConnection, HistoryItem } from '../types';
+import { Collection, ApiRequest, DatabaseConnection, HistoryItem, Environment, KeyValuePair } from '../types';
 import { NewCollectionModal } from './ApiStudio/NewCollectionModal';
 import { NewConnectionModal } from './DatabaseStudio/NewConnectionModal';
 import { ImportExportModal } from './ApiStudio/ImportExportModal';
@@ -49,6 +49,12 @@ interface SidebarProps {
   onDeleteDatabase: (dbId: string) => void;
   onRenameDatabase?: (dbId: string, newName: string) => void;
   onReorderDatabases?: (sourceIndex: number, destIndex: number) => void;
+  environments?: Environment[];
+  activeEnv?: Environment;
+  onSelectEnv?: (env: Environment) => void;
+  onAddEnvironment?: (name: string) => void;
+  onDeleteEnvironment?: (envId: string) => void;
+  onRenameEnvironment?: (envId: string, newName: string) => void;
   history: HistoryItem[];
 }
 
@@ -76,10 +82,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onDeleteDatabase,
   onRenameDatabase,
   onReorderDatabases,
+  environments = [],
+  activeEnv,
+  onSelectEnv,
+  onAddEnvironment,
+  onDeleteEnvironment,
+  onRenameEnvironment,
   history
 }) => {
   const [isNewColModalOpen, setIsNewColModalOpen] = useState(false);
   const [isNewDbModalOpen, setIsNewDbModalOpen] = useState(false);
+  const [isNewEnvModalOpen, setIsNewEnvModalOpen] = useState(false);
+  const [newEnvName, setNewEnvName] = useState('');
   const [isImportExportModalOpen, setIsImportExportModalOpen] = useState(false);
   const [selectedColForExport, setSelectedColForExport] = useState<string | undefined>(undefined);
   const [collapsedCols, setCollapsedCols] = useState<Record<string, boolean>>({});
@@ -91,6 +105,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [editingReqName, setEditingReqName] = useState('');
   const [editingDbId, setEditingDbId] = useState<string | null>(null);
   const [editingDbName, setEditingDbName] = useState('');
+  const [editingEnvId, setEditingEnvId] = useState<string | null>(null);
+  const [editingEnvName, setEditingEnvName] = useState('');
 
   // Drag and Drop States
   const [draggedColIndex, setDraggedColIndex] = useState<number | null>(null);
@@ -665,11 +681,174 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {activeTab === 'secrets' && (
           <div>
             <div className="sidebar-section-header">
-              <span>Environment Scopes</span>
+              <span>Environments ({environments.length})</span>
+              <button 
+                onClick={() => setIsNewEnvModalOpen(true)}
+                className="sidebar-action-btn" 
+                title="Create New Environment"
+              >
+                <Plus size={14} color="#f59e0b" />
+              </button>
             </div>
-            <div style={{ color: 'var(--text-dim)', fontSize: '11px', padding: '6px' }}>
-              Variables & secrets are stored locally in plain Git-versioned <code>.env</code> files or encrypted with OS Keyring.
-            </div>
+
+            {environments.map((env) => {
+              const isSelected = activeEnv?.id === env.id;
+
+              return (
+                <div key={env.id} style={{ marginBottom: '8px' }}>
+                  <div
+                    className={`sidebar-item ${isSelected ? 'active' : ''}`}
+                    onClick={() => onSelectEnv && onSelectEnv(env)}
+                    style={{
+                      padding: '7px 8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <div 
+                      className="sidebar-item-left" 
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onDoubleClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setEditingEnvId(env.id);
+                        setEditingEnvName(env.name);
+                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}
+                    >
+                      <KeyRound size={13} color={isSelected ? '#f59e0b' : '#64748b'} style={{ flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {editingEnvId === env.id ? (
+                          <input
+                            autoFocus
+                            value={editingEnvName}
+                            onChange={(e) => setEditingEnvName(e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                if (onRenameEnvironment && editingEnvName.trim()) {
+                                  onRenameEnvironment(env.id, editingEnvName.trim());
+                                }
+                                setEditingEnvId(null);
+                              } else if (e.key === 'Escape') {
+                                setEditingEnvId(null);
+                              }
+                            }}
+                            onBlur={() => {
+                              if (onRenameEnvironment && editingEnvName.trim()) {
+                                onRenameEnvironment(env.id, editingEnvName.trim());
+                              }
+                              setEditingEnvId(null);
+                            }}
+                            className="inline-rename-input"
+                            style={{ height: '20px', fontSize: '11px', width: '100%' }}
+                          />
+                        ) : (
+                          <div 
+                            title="Double-click to rename environment"
+                            style={{ fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          >
+                            {env.name}
+                          </div>
+                        )}
+                        <div style={{ fontSize: '10px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+                          {env.variables.length} variable{env.variables.length === 1 ? '' : 's'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingEnvId(env.id);
+                          setEditingEnvName(env.name);
+                        }}
+                        className="sidebar-action-btn"
+                        title={`Rename "${env.name}"`}
+                        style={{ opacity: isSelected ? 1 : 0.6 }}
+                      >
+                        <Edit3 size={11} color="var(--text-dim)" />
+                      </button>
+                      {environments.length > 1 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`Delete environment "${env.name}"?`)) {
+                              if (onDeleteEnvironment) onDeleteEnvironment(env.id);
+                            }
+                          }}
+                          className="sidebar-action-btn"
+                          title="Delete Environment"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* If active, display live variables list directly in sidebar */}
+                  {isSelected && (
+                    <div style={{ paddingLeft: '14px', marginTop: '4px' }}>
+                      {env.variables.length === 0 ? (
+                        <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontStyle: 'italic', padding: '4px 6px' }}>
+                          No variables yet. Use bapu.env.set(...) in scripts or Add Variable in Secrets Studio.
+                        </div>
+                      ) : (
+                        env.variables.map((v: KeyValuePair) => (
+                          <div
+                            key={v.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '3px 6px',
+                              borderRadius: 'var(--radius-sm)',
+                              fontSize: '11px',
+                              background: 'rgba(255, 255, 255, 0.02)',
+                              marginBottom: '3px'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', flex: 1 }}>
+                              <span style={{ 
+                                width: '6px', 
+                                height: '6px', 
+                                borderRadius: '50%', 
+                                background: v.enabled ? '#10b981' : '#64748b', 
+                                flexShrink: 0 
+                              }} />
+                              <span style={{ 
+                                fontFamily: 'var(--font-mono)', 
+                                color: v.isSecret ? '#f59e0b' : '#38bdf8', 
+                                fontWeight: 500, 
+                                overflow: 'hidden', 
+                                textOverflow: 'ellipsis', 
+                                whiteSpace: 'nowrap' 
+                              }}>
+                                {v.key}
+                              </span>
+                            </div>
+                            <span style={{ 
+                              fontSize: '9px', 
+                              color: 'var(--text-dim)', 
+                              fontFamily: 'var(--font-mono)', 
+                              marginLeft: '6px', 
+                              flexShrink: 0 
+                            }}>
+                              {v.isSecret ? '••••' : (v.value ? (v.value.length > 8 ? v.value.slice(0, 8) + '...' : v.value) : '(empty)')}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -711,6 +890,58 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <span>RAM: <strong>28.4 MB</strong></span>
         <span>v1.0.0-oss</span>
       </div>
+
+      {/* New Environment Modal */}
+      {isNewEnvModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '380px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '12px' }}>Create New Environment</h3>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+              Create an isolated scope for staging, production, or local secrets.
+            </p>
+            <input
+              type="text"
+              autoFocus
+              value={newEnvName}
+              onChange={(e) => setNewEnvName(e.target.value)}
+              placeholder="e.g. Staging Europe, Production US"
+              className="kv-input"
+              style={{ width: '100%', marginBottom: '16px' }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newEnvName.trim()) {
+                  if (onAddEnvironment) onAddEnvironment(newEnvName.trim());
+                  setNewEnvName('');
+                  setIsNewEnvModalOpen(false);
+                }
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button 
+                onClick={() => {
+                  setNewEnvName('');
+                  setIsNewEnvModalOpen(false);
+                }} 
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  if (newEnvName.trim()) {
+                    if (onAddEnvironment) onAddEnvironment(newEnvName.trim());
+                    setNewEnvName('');
+                    setIsNewEnvModalOpen(false);
+                  }
+                }}
+                disabled={!newEnvName.trim()}
+                className="btn-send"
+              >
+                Create Environment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* New Collection Modal */}
       <NewCollectionModal

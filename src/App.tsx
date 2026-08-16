@@ -334,6 +334,35 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleAddEnvironment = (name: string) => {
+    const newEnv: Environment = {
+      id: `env-${Date.now()}`,
+      name,
+      variables: [
+        { id: `var-${Date.now()}-1`, key: 'API_BASE_URL', value: 'https://api.example.com', enabled: true, isSecret: false }
+      ]
+    };
+    setEnvironments(prev => [...prev, newEnv]);
+    setActiveEnv(newEnv);
+    handleRecordHistory(`Created Environment: ${name}`, '1 default variable');
+  };
+
+  const handleDeleteEnvironment = (envId: string) => {
+    if (environments.length <= 1) return;
+    const remaining = environments.filter(e => e.id !== envId);
+    setEnvironments(remaining);
+    if (activeEnv.id === envId) {
+      setActiveEnv(remaining[0]);
+    }
+  };
+
+  const handleRenameEnvironment = (envId: string, newName: string) => {
+    setEnvironments(prev => prev.map(e => e.id === envId ? { ...e, name: newName } : e));
+    if (activeEnv.id === envId) {
+      setActiveEnv(prev => ({ ...prev, name: newName }));
+    }
+  };
+
   const handleImportCollection = (newCol: Collection) => {
     setCollections(prev => [...prev, newCol]);
     if (newCol.requests.length > 0) {
@@ -387,6 +416,12 @@ export const App: React.FC = () => {
             onDeleteDatabase={handleDeleteDatabase}
             onRenameDatabase={handleRenameDatabase}
             onReorderDatabases={handleReorderDatabases}
+            environments={environments}
+            activeEnv={activeEnv}
+            onSelectEnv={setActiveEnv}
+            onAddEnvironment={handleAddEnvironment}
+            onDeleteEnvironment={handleDeleteEnvironment}
+            onRenameEnvironment={handleRenameEnvironment}
             history={history}
           />
         </div>

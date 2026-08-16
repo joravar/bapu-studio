@@ -610,6 +610,21 @@ test('Dynamic Variable: propagate bapu.env.set into environment secrets matrix',
   assert.strictEqual(tokenVar.value, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
 });
 
+test('Environment Management: create and rename environment scope', () => {
+  let envs = [
+    { id: 'env-1', name: 'Dev', variables: [] }
+  ];
+
+  // Add environment
+  const newEnv = { id: 'env-2', name: 'Staging EU', variables: [] };
+  envs.push(newEnv);
+  assert.strictEqual(envs.length, 2);
+
+  // Rename environment
+  envs = envs.map(e => e.id === 'env-2' ? { ...e, name: 'Staging Frankfurt' } : e);
+  assert.strictEqual(envs[1].name, 'Staging Frankfurt');
+});
+
 // ------------------------------------------------------------------------------
 // SUMMARY
 // ------------------------------------------------------------------------------
