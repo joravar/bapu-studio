@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, Database, Check, Zap, Server, Shield, HardDrive } from 'lucide-react';
+import { X, Database, Check, Zap, Server, Shield, HardDrive, Link2, Sliders, Sparkles } from 'lucide-react';
 import { DatabaseConnection } from '../../types';
+import { DatabaseService } from '../../services/databaseService';
 
 interface NewConnectionModalProps {
   isOpen: boolean;
@@ -9,26 +10,90 @@ interface NewConnectionModalProps {
 }
 
 type DbType = 'postgres' | 'mysql' | 'mongodb' | 'sqlite' | 'redis';
+type ConnectionMode = 'uri' | 'params';
 
-import { DatabaseService } from '../../services/databaseService';
+export function parseDatabaseUri(uri: string): {
+  type?: DbType;
+  host?: string;
+  port?: string;
+  database?: string;
+  username?: string;
+  password?: string;
+  displayName?: string;
+} {
+  const trimmed = uri.trim();
+  if (!trimmed) return {};
+
+  let type: DbType | undefined;
+  if (trimmed.startsWith('postgres://') || trimmed.startsWith('postgresql://')) type = 'postgres';
+  else if (trimmed.startsWith('mysql://') || trimmed.startsWith('mariadb://')) type = 'mysql';
+  else if (trimmed.startsWith('mongodb://') || trimmed.startsWith('mongodb+srv://')) type = 'mongodb';
+  else if (trimmed.startsWith('redis://') || trimmed.startsWith('rediss://')) type = 'redis';
+  else if (trimmed.startsWith('sqlite://') || trimmed.endsWith('.db') || trimmed.endsWith('.sqlite') || trimmed.endsWith('.sqlite3')) type = 'sqlite';
+
+  try {
+    // Handle standard URL parsing
+    const normalizedUri = trimmed.replace('mongodb+srv://', 'http://').replace('rediss://', 'http://').replace('postgresql://', 'http://').replace('postgres://', 'http://').replace('mysql://', 'http://').replace('redis://', 'http://').replace('sqlite://', 'http://');
+    const parsed = new URL(normalizedUri);
+
+    const username = parsed.username ? decodeURIComponent(parsed.username) : undefined;
+    const password = parsed.password ? decodeURIComponent(parsed.password) : undefined;
+    const host = parsed.hostname || undefined;
+    const port = parsed.port || (type === 'postgres' ? '5432' : type === 'mysql' ? '3306' : type === 'mongodb' ? '27017' : type === 'redis' ? '6379' : undefined);
+    let database = parsed.pathname ? parsed.pathname.replace(/^\//, '') : undefined;
+    if (database && database.includes('?')) database = database.split('?')[0];
+
+    const hostLabel = host ? (host.length > 25 ? host.slice(0, 22) + '...' : host) : 'Database';
+    const typeLabel = type ? type.toUpperCase() : 'Cloud DB';
+
+    return {
+      type,
+      host,
+      port,
+      database: database || (type === 'mongodb' ? 'test' : 'main'),
+      username,
+      password,
+      displayName: `${typeLabel} (${hostLabel})`
+    };
+  } catch {
+    return { type };
+  }
+}
 
 export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
   isOpen,
   onClose,
   onConnect
 }) => {
-  const [name, setName] = useState('New PostgreSQL Connection');
+  const [connectionMode, setConnectionMode] = useState<ConnectionMode>('uri');
+  const [name, setName] = useState('Production PostgreSQL (Neon)');
   const [type, setType] = useState<DbType>('postgres');
-  const [host, setHost] = useState('localhost');
-  const [port, setPort] = useState('5432');
-  const [database, setDatabase] = useState('my_app_db');
-  const [username, setUsername] = useState('postgres');
-  const [password, setPassword] = useState('');
   const [connectionString, setConnectionString] = useState('');
+  const [host, setHost] = useState('ep-cool-dawn-123456.us-east-2.aws.neon.tech');
+  const [port, setPort] = useState('5432');
+  const [database, setDatabase] = useState('neondb');
+  const [username, setUsername] = useState('alex');
+  const [password, setPassword] = useState('');
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   if (!isOpen) return null;
+
+  const handleUriChange = (val: string) => {
+    setConnectionString(val);
+    setTestResult(null);
+
+    const parsed = parseDatabaseUri(val);
+    if (parsed.type) setType(parsed.type);
+    if (parsed.host) setHost(parsed.host);
+    if (parsed.port) setPort(parsed.port);
+    if (parsed.database) setDatabase(parsed.database);
+    if (parsed.username) setUsername(parsed.username);
+    if (parsed.password) setPassword(parsed.password);
+    if (parsed.displayName && (!name || name.startsWith('New ') || name.includes('Database'))) {
+      setName(parsed.displayName);
+    }
+  };
 
   const handleTypeChange = (newType: DbType) => {
     setType(newType);
@@ -36,15 +101,17 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       setName('PostgreSQL Database');
       setPort('5432');
       setUsername('postgres');
+      setDatabase('postgres');
     } else if (newType === 'mysql') {
       setName('MySQL Database');
       setPort('3306');
       setUsername('root');
+      setDatabase('app_db');
     } else if (newType === 'mongodb') {
-      setName('MongoDB Cluster / Local');
+      setName('MongoDB Cluster (Atlas)');
       setPort('27017');
       setUsername('');
-      setDatabase('app_db');
+      setDatabase('test');
     } else if (newType === 'sqlite') {
       setName('Local SQLite DB');
       setDatabase('app_local.sqlite');
@@ -98,7 +165,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       ]
     };
 
-    // Attach credentials
+    // Attach credentials for native drivers
     (dbConfig as any).host = host;
     (dbConfig as any).port = port;
     (dbConfig as any).username = username;
@@ -116,8 +183,8 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ maxWidth: '580px' }} onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
+      <div className="modal-content" style={{ maxWidth: '620px' }} onClick={(e) => e.stopPropagation()}>
+        {/* Modal Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Database size={20} color="#10b981" />
@@ -131,6 +198,28 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
           </button>
         </div>
 
+        {/* Mode Selector Tabs: Connection URI vs Individual Parameters */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', background: 'var(--bg-input)', padding: '3px', borderRadius: 'var(--radius-md)' }}>
+          <button
+            type="button"
+            onClick={() => setConnectionMode('uri')}
+            className={`subtab-btn ${connectionMode === 'uri' ? 'active' : ''}`}
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '6px', fontSize: '12px', fontWeight: 600 }}
+          >
+            <Link2 size={13} color="#10b981" />
+            <span>Connection URI / String (Neon, Atlas, TiDB, etc.)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setConnectionMode('params')}
+            className={`subtab-btn ${connectionMode === 'params' ? 'active' : ''}`}
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '6px', fontSize: '12px', fontWeight: 600 }}
+          >
+            <Sliders size={13} color="#60a5fa" />
+            <span>Individual Parameters (Host, Port, User)</span>
+          </button>
+        </div>
+
         {/* Database Driver Selector */}
         <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
           {(['postgres', 'mysql', 'mongodb', 'sqlite', 'redis'] as DbType[]).map((t) => (
@@ -139,7 +228,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
               type="button"
               onClick={() => handleTypeChange(t)}
               className={`subtab-btn ${type === t ? 'active' : ''}`}
-              style={{ flex: 1, padding: '8px 2px', textTransform: 'uppercase', fontWeight: 700, fontSize: '10px' }}
+              style={{ flex: 1, padding: '7px 2px', textTransform: 'uppercase', fontWeight: 700, fontSize: '10px' }}
             >
               {t}
             </button>
@@ -148,6 +237,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
 
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* Display Name */}
             <div>
               <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
                 Connection Display Name
@@ -169,17 +259,33 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
               />
             </div>
 
-            {type === 'mongodb' && (
+            {/* Connection URI Mode */}
+            {connectionMode === 'uri' && (
               <div>
-                <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
-                  MongoDB Connection URI (Optional — e.g. Atlas <code>mongodb+srv://...</code>)
-                </label>
-                <input
-                  type="text"
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
+                    Database Connection URI / URL
+                  </label>
+                  <span style={{ fontSize: '10px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Sparkles size={11} /> Auto-detects Host, Port, User & DB
+                  </span>
+                </div>
+                <textarea
                   value={connectionString}
-                  onChange={(e) => setConnectionString(e.target.value)}
-                  placeholder="mongodb+srv://user:pass@cluster.mongodb.net/dbname"
-                  className="url-input"
+                  onChange={(e) => handleUriChange(e.target.value)}
+                  placeholder={
+                    type === 'postgres'
+                      ? 'postgresql://user:password@ep-cool-dawn.us-east-2.aws.neon.tech/neondb?sslmode=require'
+                      : type === 'mongodb'
+                      ? 'mongodb+srv://devuser:password123@cluster0.abcde.mongodb.net/production?retryWrites=true&w=majority'
+                      : type === 'mysql'
+                      ? 'mysql://root:password@gateway01.us-east-1.tidbcloud.com:4000/app_db'
+                      : type === 'redis'
+                      ? 'rediss://default:token@us1-cool-panda.upstash.io:6379'
+                      : 'sqlite:///path/to/database.db'
+                  }
+                  rows={3}
+                  className="code-textarea"
                   style={{
                     width: '100%',
                     background: 'var(--bg-input)',
@@ -187,129 +293,147 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                     borderRadius: 'var(--radius-md)',
                     padding: '8px 12px',
                     color: '#fff',
-                    fontFamily: 'var(--font-mono)'
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '11px'
                   }}
                 />
+
+                {/* Parsed summary chip */}
+                {host && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px', fontSize: '10px', color: 'var(--text-dim)' }}>
+                    <span className="method-pill method-GET" style={{ fontSize: '9px', textTransform: 'uppercase' }}>{type}</span>
+                    <span>Host: <strong style={{ color: '#fff' }}>{host}</strong></span>
+                    {port && <span>Port: <strong style={{ color: '#fff' }}>{port}</strong></span>}
+                    {database && <span>DB: <strong style={{ color: '#38bdf8' }}>{database}</strong></span>}
+                    {username && <span>User: <strong style={{ color: '#a855f7' }}>{username}</strong></span>}
+                  </div>
+                )}
               </div>
             )}
 
-            {type !== 'sqlite' && !connectionString && (
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
-                    Host / IP
-                  </label>
-                  <input
-                    type="text"
-                    value={host}
-                    onChange={(e) => setHost(e.target.value)}
-                    placeholder="localhost or db.example.com"
-                    className="url-input"
-                    style={{
-                      width: '100%',
-                      background: 'var(--bg-input)',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: 'var(--radius-md)',
-                      padding: '8px 12px',
-                      color: '#fff',
-                      fontFamily: 'var(--font-mono)'
-                    }}
-                  />
+            {/* Individual Parameters Mode */}
+            {connectionMode === 'params' && (
+              <>
+                {type !== 'sqlite' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
+                        Host / Server Address
+                      </label>
+                      <input
+                        type="text"
+                        value={host}
+                        onChange={(e) => setHost(e.target.value)}
+                        placeholder="localhost or ep-xyz.neon.tech"
+                        className="url-input"
+                        style={{
+                          width: '100%',
+                          background: 'var(--bg-input)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: 'var(--radius-md)',
+                          padding: '8px 12px',
+                          color: '#fff',
+                          fontFamily: 'var(--font-mono)'
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
+                        Port
+                      </label>
+                      <input
+                        type="text"
+                        value={port}
+                        onChange={(e) => setPort(e.target.value)}
+                        className="url-input"
+                        style={{
+                          width: '100%',
+                          background: 'var(--bg-input)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: 'var(--radius-md)',
+                          padding: '8px 12px',
+                          color: '#fff',
+                          fontFamily: 'var(--font-mono)'
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: type === 'sqlite' ? '1fr' : '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
+                      {type === 'sqlite' ? 'SQLite Database File Path' : 'Database Name'}
+                    </label>
+                    <input
+                      type="text"
+                      value={database}
+                      onChange={(e) => setDatabase(e.target.value)}
+                      placeholder={type === 'sqlite' ? 'local_app.sqlite' : 'production_db'}
+                      className="url-input"
+                      style={{
+                        width: '100%',
+                        background: 'var(--bg-input)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '8px 12px',
+                        color: '#fff',
+                        fontFamily: 'var(--font-mono)'
+                      }}
+                    />
+                  </div>
+
+                  {type !== 'sqlite' && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
+                        Username
+                      </label>
+                      <input
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        className="url-input"
+                        style={{
+                          width: '100%',
+                          background: 'var(--bg-input)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: 'var(--radius-md)',
+                          padding: '8px 12px',
+                          color: '#fff',
+                          fontFamily: 'var(--font-mono)'
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
-                    Port
-                  </label>
-                  <input
-                    type="text"
-                    value={port}
-                    onChange={(e) => setPort(e.target.value)}
-                    className="url-input"
-                    style={{
-                      width: '100%',
-                      background: 'var(--bg-input)',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: 'var(--radius-md)',
-                      padding: '8px 12px',
-                      color: '#fff',
-                      fontFamily: 'var(--font-mono)'
-                    }}
-                  />
-                </div>
-              </div>
+                {type !== 'sqlite' && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
+                      Password (Stored in OS Secure Keyring)
+                    </label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="url-input"
+                      style={{
+                        width: '100%',
+                        background: 'var(--bg-input)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '8px 12px',
+                        color: '#fff'
+                      }}
+                    />
+                  </div>
+                )}
+              </>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: type === 'sqlite' ? '1fr' : '1fr 1fr', gap: '10px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
-                  {type === 'sqlite' ? 'SQLite Database File Name' : 'Database Name'}
-                </label>
-                <input
-                  type="text"
-                  value={database}
-                  onChange={(e) => setDatabase(e.target.value)}
-                  placeholder="database_name"
-                  className="url-input"
-                  style={{
-                    width: '100%',
-                    background: 'var(--bg-input)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '8px 12px',
-                    color: '#fff',
-                    fontFamily: 'var(--font-mono)'
-                  }}
-                />
-              </div>
-
-              {type !== 'sqlite' && (
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
-                    Username
-                  </label>
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="url-input"
-                    style={{
-                      width: '100%',
-                      background: 'var(--bg-input)',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: 'var(--radius-md)',
-                      padding: '8px 12px',
-                      color: '#fff',
-                      fontFamily: 'var(--font-mono)'
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-
-            {type !== 'sqlite' && (
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
-                  Password (Stored in OS Secure Keyring)
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="url-input"
-                  style={{
-                    width: '100%',
-                    background: 'var(--bg-input)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '8px 12px',
-                    color: '#fff'
-                  }}
-                />
-              </div>
-            )}
-
+            {/* Test Connection Diagnostic Result */}
             {testResult && (
               <div style={{
                 padding: '10px 14px',
@@ -324,6 +448,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
             )}
           </div>
 
+          {/* Action Buttons */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px' }}>
             <button
               type="button"
@@ -332,7 +457,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
               className="btn-secondary"
             >
               <Zap size={13} color="#f59e0b" />
-              <span>{isTesting ? 'Pinging...' : 'Test Connection'}</span>
+              <span>{isTesting ? 'Pinging Database...' : 'Test Connection'}</span>
             </button>
 
             <div style={{ display: 'flex', gap: '8px' }}>

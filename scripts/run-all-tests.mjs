@@ -674,6 +674,52 @@ test('Database Studio: MongoDB document key extraction for dynamic table grid', 
   assert.deepStrictEqual(allKeys, ['_id', 'name', 'price', 'inStock']);
 });
 
+test('Database Studio: Connection String URI parser for Neon / Atlas / TiDB', () => {
+  function parseDatabaseUri(uri) {
+    const trimmed = uri.trim();
+    let type;
+    if (trimmed.startsWith('postgres://') || trimmed.startsWith('postgresql://')) type = 'postgres';
+    else if (trimmed.startsWith('mysql://')) type = 'mysql';
+    else if (trimmed.startsWith('mongodb://') || trimmed.startsWith('mongodb+srv://')) type = 'mongodb';
+    else if (trimmed.startsWith('redis://') || trimmed.startsWith('rediss://')) type = 'redis';
+    else if (trimmed.startsWith('sqlite://')) type = 'sqlite';
+
+    const normalizedUri = trimmed.replace('mongodb+srv://', 'http://').replace('rediss://', 'http://').replace('postgresql://', 'http://').replace('postgres://', 'http://').replace('mysql://', 'http://').replace('redis://', 'http://');
+    const parsed = new URL(normalizedUri);
+
+    const username = parsed.username ? decodeURIComponent(parsed.username) : undefined;
+    const password = parsed.password ? decodeURIComponent(parsed.password) : undefined;
+    const host = parsed.hostname || undefined;
+    const port = parsed.port || (type === 'postgres' ? '5432' : type === 'mysql' ? '3306' : type === 'mongodb' ? '27017' : '6379');
+    let database = parsed.pathname ? parsed.pathname.replace(/^\//, '') : undefined;
+    if (database && database.includes('?')) database = database.split('?')[0];
+
+    return { type, host, port, database, username, password };
+  }
+
+  // 1. Neon Postgres
+  const neon = parseDatabaseUri('postgresql://alex:Secr3tP@ss@ep-cool-dawn.us-east-2.aws.neon.tech/neondb?sslmode=require');
+  assert.strictEqual(neon.type, 'postgres');
+  assert.strictEqual(neon.host, 'ep-cool-dawn.us-east-2.aws.neon.tech');
+  assert.strictEqual(neon.database, 'neondb');
+  assert.strictEqual(neon.username, 'alex');
+  assert.strictEqual(neon.password, 'Secr3tP@ss');
+
+  // 2. MongoDB Atlas
+  const atlas = parseDatabaseUri('mongodb+srv://admin:atlas998@cluster0.abcde.mongodb.net/production?retryWrites=true');
+  assert.strictEqual(atlas.type, 'mongodb');
+  assert.strictEqual(atlas.host, 'cluster0.abcde.mongodb.net');
+  assert.strictEqual(atlas.database, 'production');
+  assert.strictEqual(atlas.username, 'admin');
+
+  // 3. MySQL TiDB Cloud
+  const mysql = parseDatabaseUri('mysql://root:dbpass123@gateway01.us-east-1.tidbcloud.com:4000/app_db');
+  assert.strictEqual(mysql.type, 'mysql');
+  assert.strictEqual(mysql.host, 'gateway01.us-east-1.tidbcloud.com');
+  assert.strictEqual(mysql.port, '4000');
+  assert.strictEqual(mysql.database, 'app_db');
+});
+
 // ------------------------------------------------------------------------------
 // SUMMARY
 // ------------------------------------------------------------------------------
