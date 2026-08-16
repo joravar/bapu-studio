@@ -37,43 +37,45 @@ function createWindow() {
 
 // ------------------------------------------------------------------------------
 // NATIVE DATABASE DRIVER IPC HANDLERS (PostgreSQL, MySQL, MongoDB)
-// Helper to build robust Postgres config with auto SSL for Neon/Supabase/Cloud DBs
+// Helper to build robust Postgres config with auto SSL and TLS SNI for Neon/Supabase/Cloud DBs
 function getPgConfig(config) {
+  let host = config.host;
+  if (!host && config.connectionString) {
+    try {
+      const match = config.connectionString.match(/@([^/:?]+)/);
+      if (match) host = match[1];
+    } catch {}
+  }
+
   const isSslNeeded = config.ssl !== false && (
     config.ssl === true || 
     (config.connectionString && (config.connectionString.includes('sslmode') || config.connectionString.includes('neon.tech') || config.connectionString.includes('supabase') || config.connectionString.includes('aiven') || config.connectionString.includes('render.com') || config.connectionString.includes('aws'))) ||
-    (config.host && !config.host.includes('localhost') && !config.host.includes('127.0.0.1'))
+    (host && !host.includes('localhost') && !host.includes('127.0.0.1'))
   );
 
-  // If host and user credentials are provided (either parsed or input), use explicit config for safe password escaping
-  if (config.host && config.username) {
-    return {
-      host: config.host,
-      port: parseInt(config.port, 10) || 5432,
-      database: config.database || 'postgres',
-      user: config.username,
-      password: config.password || '',
-      connectionTimeoutMillis: 8000,
-      ssl: isSslNeeded ? { rejectUnauthorized: false } : undefined
-    };
-  }
+  const sslConfig = isSslNeeded ? {
+    rejectUnauthorized: false,
+    servername: host || undefined
+  } : undefined;
 
+  // If a full connection string URI is provided, use it directly with SSL SNI options
   if (config.connectionString) {
     return {
       connectionString: config.connectionString,
-      ssl: isSslNeeded ? { rejectUnauthorized: false } : undefined,
-      connectionTimeoutMillis: 8000
+      ssl: sslConfig,
+      connectionTimeoutMillis: 10000
     };
   }
 
+  // Otherwise use discrete credentials parameters
   return {
-    host: config.host || 'localhost',
+    host: host || 'localhost',
     port: parseInt(config.port, 10) || 5432,
     database: config.database || 'postgres',
     user: config.username || 'postgres',
     password: config.password || '',
-    connectionTimeoutMillis: 8000,
-    ssl: isSslNeeded ? { rejectUnauthorized: false } : undefined
+    connectionTimeoutMillis: 10000,
+    ssl: sslConfig
   };
 }
 

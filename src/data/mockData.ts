@@ -129,7 +129,7 @@ export const INITIAL_ENVIRONMENTS: Environment[] = [
 export const INITIAL_DATABASES: DatabaseConnection[] = [
   {
     id: 'db-main',
-    name: 'Production Postgres (Neon)',
+    name: 'Sample PostgreSQL (Demo)',
     type: 'postgres',
     database: 'nexus_core_db',
     isConnected: true,

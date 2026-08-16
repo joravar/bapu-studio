@@ -52,11 +52,12 @@ export const DatabaseService = {
   },
 
   async executeQuery(db: DatabaseConnection, sql: string): Promise<SqlQueryResult> {
-    const isDemoDb = db.id.includes('demo') || db.id === 'db-1' || db.id === 'db-2' || db.name.toLowerCase().includes('demo');
+    const hasRealCredentials = Boolean(db.connectionString || ((db as any).host && !(db as any).host.includes('localhost') && (db as any).password));
+    const isDemoDb = !hasRealCredentials || db.id.includes('demo') || db.id === 'db-main' || db.id === 'db-cache' || db.id === 'db-1' || db.id === 'db-2' || db.name.toLowerCase().includes('demo') || db.name.toLowerCase().includes('sample');
     const ipc = getIpcRenderer();
 
     // If it's a real user-added database with host credentials, run through native IPC driver
-    if (ipc && !isDemoDb && (db as any).host) {
+    if (ipc && !isDemoDb && ((db as any).host || db.connectionString)) {
       try {
         const res = await ipc.invoke('db:query', { config: db, sql });
         return res;
