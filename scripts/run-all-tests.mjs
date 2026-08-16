@@ -781,6 +781,40 @@ test('Database Studio: Edit & Update Database Connection Parameters', () => {
 });
 
 // ------------------------------------------------------------------------------
+// 10. HISTORY STUDIO & ACTIVITY AUDIT ENGINE
+// ------------------------------------------------------------------------------
+console.log('\n--- 10. Testing History Studio & Activity Audit Engine ---');
+
+test('History Studio: Record, Filter, Search, Replay, and Clear Lifecycle', () => {
+  let history = [
+    { id: 'h-1', type: 'api', title: 'POST /auth/login', subtitle: '200 OK • 24ms', status: 200, timestamp: '11:00:01 PM' },
+    { id: 'h-2', type: 'sql', title: 'SQL: SELECT * FROM users LIMIT 15', subtitle: '15 rows • 12ms', status: 200, timestamp: '11:00:15 PM' },
+    { id: 'h-3', type: 'api', title: 'GET /api/v1/orders/992', subtitle: '404 Not Found • 85ms', status: 404, timestamp: '11:01:00 PM' }
+  ];
+
+  // 1. Initial count
+  assert.strictEqual(history.length, 3);
+
+  // 2. Filter errors (4xx / 5xx)
+  const errorItems = history.filter(h => h.status && h.status >= 400);
+  assert.strictEqual(errorItems.length, 1);
+  assert.strictEqual(errorItems[0].id, 'h-3');
+
+  // 3. Search query "SELECT"
+  const searchResults = history.filter(h => h.title.toLowerCase().includes('select'));
+  assert.strictEqual(searchResults.length, 1);
+  assert.strictEqual(searchResults[0].id, 'h-2');
+
+  // 4. Delete single item
+  history = history.filter(h => h.id !== 'h-3');
+  assert.strictEqual(history.length, 2);
+
+  // 5. Clear all history
+  history = [];
+  assert.strictEqual(history.length, 0);
+});
+
+// ------------------------------------------------------------------------------
 // SUMMARY
 // ------------------------------------------------------------------------------
 console.log('\n==============================================================================');

@@ -5,6 +5,7 @@ import { ApiStudio } from './components/ApiStudio/ApiStudio';
 import { DatabaseStudio } from './components/DatabaseStudio/DatabaseStudio';
 import { StreamStudio } from './components/StreamStudio/StreamStudio';
 import { SecretsStudio } from './components/SecretsStudio/SecretsStudio';
+import { HistoryStudio } from './components/HistoryStudio/HistoryStudio';
 import { ProModal } from './components/ProModal';
 import { 
   INITIAL_COLLECTIONS, 
@@ -205,6 +206,23 @@ export const App: React.FC = () => {
       setActiveDb(updatedDb);
     }
     handleRecordHistory(`Updated DB: ${updatedDb.name}`, `${updatedDb.type.toUpperCase()} • ${updatedDb.database}`);
+  };
+
+  const handleClearHistory = () => {
+    setHistory([]);
+    try { localStorage.removeItem('bapu_history'); } catch {}
+  };
+
+  const handleDeleteHistoryItem = (id: string) => {
+    setHistory(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleReplayHistoryItem = (item: HistoryItem) => {
+    if (item.title.startsWith('SQL:') || item.type === 'sql') {
+      setActiveTab('db');
+    } else {
+      setActiveTab('api');
+    }
   };
 
   const handleDeleteDatabase = (dbId: string) => {
@@ -432,6 +450,9 @@ export const App: React.FC = () => {
             onDeleteEnvironment={handleDeleteEnvironment}
             onRenameEnvironment={handleRenameEnvironment}
             history={history}
+            onClearHistory={handleClearHistory}
+            onDeleteHistoryItem={handleDeleteHistoryItem}
+            onReplayHistoryItem={handleReplayHistoryItem}
           />
         </div>
 
@@ -530,30 +551,12 @@ export const App: React.FC = () => {
             )}
 
             {activeTab === 'history' && (
-              <div style={{ padding: '24px', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#fff', marginBottom: '16px' }}>
-                  Execution History
-                </h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {history.map(item => (
-                    <div key={item.id} style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '12px 16px',
-                      background: 'var(--bg-card)',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: 'var(--radius-md)'
-                    }}>
-                      <div>
-                        <div style={{ fontWeight: 600, color: '#fff' }}>{item.title}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>{item.subtitle}</div>
-                      </div>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{item.timestamp}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <HistoryStudio
+                history={history}
+                onClearHistory={handleClearHistory}
+                onDeleteHistoryItem={handleDeleteHistoryItem}
+                onReplayItem={handleReplayHistoryItem}
+              />
             )}
           </div>
         </main>

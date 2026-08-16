@@ -17,7 +17,10 @@ import {
   Download,
   FolderDown,
   Edit3,
-  Settings
+  Settings,
+  Play,
+  Copy,
+  Check
 } from 'lucide-react';
 import { Collection, ApiRequest, DatabaseConnection, HistoryItem, Environment, KeyValuePair } from '../types';
 import { NewCollectionModal } from './ApiStudio/NewCollectionModal';
@@ -58,6 +61,9 @@ interface SidebarProps {
   onDeleteEnvironment?: (envId: string) => void;
   onRenameEnvironment?: (envId: string, newName: string) => void;
   history: HistoryItem[];
+  onClearHistory?: () => void;
+  onDeleteHistoryItem?: (id: string) => void;
+  onReplayHistoryItem?: (item: HistoryItem) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -91,7 +97,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onAddEnvironment,
   onDeleteEnvironment,
   onRenameEnvironment,
-  history
+  history,
+  onClearHistory,
+  onDeleteHistoryItem,
+  onReplayHistoryItem
 }) => {
   const [isNewColModalOpen, setIsNewColModalOpen] = useState(false);
   const [isNewDbModalOpen, setIsNewDbModalOpen] = useState(false);
@@ -871,24 +880,76 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {activeTab === 'history' && (
           <div>
             <div className="sidebar-section-header">
-              <span>Recent Activity</span>
-              <button className="sidebar-action-btn" title="Clear History">
-                <Trash2 size={13} />
-              </button>
+              <span>Recent Activity ({history.length})</span>
+              {history.length > 0 && (
+                <button
+                  onClick={() => {
+                    if (confirm('Clear all activity history?')) {
+                      if (onClearHistory) onClearHistory();
+                    }
+                  }}
+                  className="sidebar-action-btn"
+                  title="Clear All History"
+                >
+                  <Trash2 size={13} />
+                </button>
+              )}
             </div>
 
-            {history.map(item => (
-              <div key={item.id} className="sidebar-item" style={{ padding: '6px 8px' }}>
-                <div>
-                  <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-main)' }}>
-                    {item.title}
+            {history.length === 0 ? (
+              <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '11px' }}>
+                No recent activity recorded yet.
+              </div>
+            ) : (
+              history.map(item => (
+                <div
+                  key={item.id}
+                  className="sidebar-item"
+                  onClick={() => onReplayHistoryItem && onReplayHistoryItem(item)}
+                  style={{
+                    padding: '6px 8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0, marginRight: '6px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.title}
+                    </div>
+                    <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '2px' }}>
+                      {item.subtitle} • {item.timestamp}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '2px' }}>
-                    {item.subtitle} • {item.timestamp}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onReplayHistoryItem) onReplayHistoryItem(item);
+                      }}
+                      className="sidebar-action-btn"
+                      title="Replay in Studio"
+                    >
+                      <Play size={10} color="#10b981" />
+                    </button>
+                    {onDeleteHistoryItem && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteHistoryItem(item.id);
+                        }}
+                        className="sidebar-action-btn"
+                        title="Delete from history"
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    )}
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         )}
       </div>
