@@ -722,25 +722,25 @@ test('Database Studio: Connection String URI parser with special characters', ()
     return { type, host, port, database, username, password };
   }
 
-  // 1. Neon Postgres with complex password containing #, !, $
-  const neon = parseDatabaseUri('postgresql://alex:npg_Secr3t#pass!99$@ep-cool-dawn.us-east-2.aws.neon.tech/neondb?sslmode=require');
+  // 1. Postgres with complex password containing #, !, $
+  const neon = parseDatabaseUri('postgresql://testuser:npg_Secr3t#pass!99$@db-cluster.example.internal:5432/neondb?sslmode=require');
   assert.strictEqual(neon.type, 'postgres');
-  assert.strictEqual(neon.host, 'ep-cool-dawn.us-east-2.aws.neon.tech');
+  assert.strictEqual(neon.host, 'db-cluster.example.internal');
   assert.strictEqual(neon.database, 'neondb');
-  assert.strictEqual(neon.username, 'alex');
+  assert.strictEqual(neon.username, 'testuser');
   assert.strictEqual(neon.password, 'npg_Secr3t#pass!99$');
 
-  // 2. MongoDB Atlas
-  const atlas = parseDatabaseUri('mongodb+srv://admin:atlas998@cluster0.abcde.mongodb.net/production?retryWrites=true');
+  // 2. MongoDB Driver URI
+  const atlas = parseDatabaseUri('mongodb+srv://testadmin:atlas998@cluster0.abcde.example.internal/production?retryWrites=true');
   assert.strictEqual(atlas.type, 'mongodb');
-  assert.strictEqual(atlas.host, 'cluster0.abcde.mongodb.net');
+  assert.strictEqual(atlas.host, 'cluster0.abcde.example.internal');
   assert.strictEqual(atlas.database, 'production');
-  assert.strictEqual(atlas.username, 'admin');
+  assert.strictEqual(atlas.username, 'testadmin');
 
-  // 3. MySQL TiDB Cloud
-  const mysql = parseDatabaseUri('mysql://root:dbpass123@gateway01.us-east-1.tidbcloud.com:4000/app_db');
+  // 3. MySQL Driver URI
+  const mysql = parseDatabaseUri('mysql://testroot:dbpass123@gateway01.example.internal:4000/app_db');
   assert.strictEqual(mysql.type, 'mysql');
-  assert.strictEqual(mysql.host, 'gateway01.us-east-1.tidbcloud.com');
+  assert.strictEqual(mysql.host, 'gateway01.example.internal');
   assert.strictEqual(mysql.port, '4000');
   assert.strictEqual(mysql.database, 'app_db');
 });
@@ -764,19 +764,19 @@ test('Database Studio: Edit & Update Database Connection Parameters', () => {
   // Edit database connection parameters
   const updatedDb = {
     ...databases[0],
-    name: 'Production Neon Postgres Cluster',
-    host: 'ep-cool-dawn.us-east-2.aws.neon.tech',
+    name: 'Production Postgres Cluster',
+    host: 'db-cluster.example.internal',
     database: 'production_main',
-    username: 'neondb_owner',
+    username: 'db_owner',
     ssl: true
   };
 
   databases = databases.map(d => d.id === updatedDb.id ? updatedDb : d);
 
-  assert.strictEqual(databases[0].name, 'Production Neon Postgres Cluster');
-  assert.strictEqual(databases[0].host, 'ep-cool-dawn.us-east-2.aws.neon.tech');
+  assert.strictEqual(databases[0].name, 'Production Postgres Cluster');
+  assert.strictEqual(databases[0].host, 'db-cluster.example.internal');
   assert.strictEqual(databases[0].database, 'production_main');
-  assert.strictEqual(databases[0].username, 'neondb_owner');
+  assert.strictEqual(databases[0].username, 'db_owner');
   assert.strictEqual(databases[0].ssl, true);
 });
 

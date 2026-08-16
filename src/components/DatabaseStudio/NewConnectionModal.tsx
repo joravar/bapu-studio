@@ -109,15 +109,15 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
   initialConnection
 }) => {
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>('uri');
-  const [name, setName] = useState('Production PostgreSQL (Neon)');
+  const [name, setName] = useState('New Database Connection');
   const [type, setType] = useState<DbType>('postgres');
   const [connectionString, setConnectionString] = useState('');
-  const [host, setHost] = useState('ep-cool-dawn-123456.us-east-2.aws.neon.tech');
+  const [host, setHost] = useState('localhost');
   const [port, setPort] = useState('5432');
-  const [database, setDatabase] = useState('neondb');
-  const [username, setUsername] = useState('alex');
+  const [database, setDatabase] = useState('postgres');
+  const [username, setUsername] = useState('postgres');
   const [password, setPassword] = useState('');
-  const [ssl, setSsl] = useState(true);
+  const [ssl, setSsl] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -137,12 +137,12 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       setName('New PostgreSQL Connection');
       setType('postgres');
       setConnectionString('');
-      setHost('ep-cool-dawn-123456.us-east-2.aws.neon.tech');
+      setHost('localhost');
       setPort('5432');
-      setDatabase('neondb');
-      setUsername('alex');
+      setDatabase('postgres');
+      setUsername('postgres');
       setPassword('');
-      setSsl(true);
+      setSsl(false);
       setConnectionMode('uri');
     }
     setTestResult(null);
@@ -450,13 +450,13 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                   onChange={(e) => handleUriChange(e.target.value)}
                   placeholder={
                     type === 'postgres'
-                      ? 'postgresql://user:password@ep-cool-dawn.us-east-2.aws.neon.tech/neondb?sslmode=require'
+                      ? 'postgresql://<username>:<password>@<host>:5432/<database>?sslmode=require'
                       : type === 'mongodb'
-                      ? 'mongodb+srv://devuser:password123@cluster0.abcde.mongodb.net/production?retryWrites=true&w=majority'
+                      ? 'mongodb+srv://<username>:<password>@<cluster-host>/<database>?retryWrites=true&w=majority'
                       : type === 'mysql'
-                      ? 'mysql://root:password@gateway01.us-east-1.tidbcloud.com:4000/app_db'
+                      ? 'mysql://<username>:<password>@<host>:3306/<database>'
                       : type === 'redis'
-                      ? 'rediss://default:token@us1-cool-panda.upstash.io:6379'
+                      ? 'rediss://<username>:<password>@<host>:6379'
                       : 'sqlite:///path/to/database.db'
                   }
                   rows={3}
@@ -499,7 +499,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                         type="text"
                         value={host}
                         onChange={(e) => setHost(e.target.value)}
-                        placeholder="localhost or ep-xyz.neon.tech"
+                        placeholder="localhost or db.example.com"
                         className="url-input"
                         style={{
                           width: '100%',
