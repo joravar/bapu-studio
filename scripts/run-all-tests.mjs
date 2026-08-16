@@ -512,6 +512,50 @@ test('Import: OpenAPI 3.0 YAML/JSON specification parsing', () => {
 });
 
 // ------------------------------------------------------------------------------
+// 8. RENAMING COLLECTIONS & API REQUESTS
+// ------------------------------------------------------------------------------
+console.log('\n--- 8. Testing Renaming Architecture ---');
+
+test('Renaming: update collection folder title', () => {
+  let collections = [
+    { id: 'col-1', name: 'Original API', requests: [] },
+    { id: 'col-2', name: 'Other API', requests: [] }
+  ];
+
+  const targetId = 'col-1';
+  const newName = 'Production Stripe API';
+
+  collections = collections.map(c => c.id === targetId ? { ...c, name: newName } : c);
+
+  assert.strictEqual(collections[0].name, 'Production Stripe API');
+  assert.strictEqual(collections[1].name, 'Other API');
+});
+
+test('Renaming: update nested API request title', () => {
+  let collections = [
+    {
+      id: 'col-1',
+      name: 'Auth API',
+      requests: [
+        { id: 'req-1', name: 'Login V1', method: 'POST' },
+        { id: 'req-2', name: 'Register', method: 'POST' }
+      ]
+    }
+  ];
+
+  const reqId = 'req-1';
+  const newName = 'OAuth 2.0 Token Exchange';
+
+  collections = collections.map(col => ({
+    ...col,
+    requests: col.requests.map(r => r.id === reqId ? { ...r, name: newName } : r)
+  }));
+
+  assert.strictEqual(collections[0].requests[0].name, 'OAuth 2.0 Token Exchange');
+  assert.strictEqual(collections[0].requests[1].name, 'Register');
+});
+
+// ------------------------------------------------------------------------------
 // SUMMARY
 // ------------------------------------------------------------------------------
 console.log('\n==============================================================================');

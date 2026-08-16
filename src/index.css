@@ -850,3 +850,50 @@ html, body, #root {
   background-color: var(--bg-card-hover);
   border-color: var(--border-active);
 }
+
+/* Request Title & Inline Renaming */
+.request-title-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px 2px 16px;
+  background-color: var(--bg-app);
+}
+
+.request-title-input {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 3px 8px;
+  outline: none;
+  width: auto;
+  min-width: 200px;
+  max-width: 480px;
+  transition: all 0.15s ease;
+}
+
+.request-title-input:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+  border-color: var(--border-subtle);
+}
+
+.request-title-input:focus {
+  background-color: var(--bg-card);
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.inline-rename-input {
+  background: var(--bg-card);
+  border: 1px solid var(--border-focus);
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  outline: none;
+  width: 100%;
+}

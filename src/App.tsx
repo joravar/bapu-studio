@@ -313,6 +313,20 @@ export const App: React.FC = () => {
     };
   }, [isResizingSidebar]);
 
+  const handleRenameCollection = (collectionId: string, newName: string) => {
+    setCollections(prev => prev.map(c => c.id === collectionId ? { ...c, name: newName } : c));
+  };
+
+  const handleRenameRequest = (requestId: string, newName: string) => {
+    setCollections(prev => prev.map(col => ({
+      ...col,
+      requests: col.requests.map(r => r.id === requestId ? { ...r, name: newName } : r)
+    })));
+    if (activeRequest && activeRequest.id === requestId) {
+      setActiveRequest(prev => prev ? { ...prev, name: newName } : null);
+    }
+  };
+
   const handleImportCollection = (newCol: Collection) => {
     setCollections(prev => [...prev, newCol]);
     if (newCol.requests.length > 0) {
@@ -348,8 +362,10 @@ export const App: React.FC = () => {
             onNewRequest={handleNewRequest}
             onAddCollection={handleAddCollection}
             onDeleteCollection={handleDeleteCollection}
+            onRenameCollection={handleRenameCollection}
             onNewRequestInCollection={handleNewRequestInCollection}
             onDeleteRequest={handleDeleteRequest}
+            onRenameRequest={handleRenameRequest}
             onReorderCollections={handleReorderCollections}
             onReorderRequests={handleReorderRequests}
             onMoveRequest={handleMoveRequest}

@@ -11,7 +11,8 @@ import {
   Database,
   ArrowDownToLine,
   Terminal,
-  FileCode2
+  FileCode2,
+  Edit3
 } from 'lucide-react';
 import { ApiRequest, ApiResponse, Environment, HttpMethod, KeyValuePair, TestAssertionResult } from '../../types';
 import { CodeSnippetModal } from './CodeSnippetModal';
@@ -261,6 +262,19 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {/* Top Request Title & Quick Rename Bar */}
+      <div className="request-title-bar">
+        <Edit3 size={13} color="var(--text-dim)" />
+        <input
+          type="text"
+          value={activeRequest.name}
+          onChange={(e) => onUpdateRequest({ ...activeRequest, name: e.target.value })}
+          placeholder="Request Name (e.g. List All Users)"
+          className="request-title-input"
+          title="Click to rename this request"
+        />
+      </div>
+
       {/* Top URL & Method Bar */}
       <div className="request-bar-container">
         <select

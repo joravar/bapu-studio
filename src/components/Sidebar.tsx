@@ -15,7 +15,8 @@ import {
   GripVertical,
   Upload,
   Download,
-  FolderDown
+  FolderDown,
+  Edit3
 } from 'lucide-react';
 import { Collection, ApiRequest, DatabaseConnection, HistoryItem } from '../types';
 import { NewCollectionModal } from './ApiStudio/NewCollectionModal';
@@ -33,8 +34,10 @@ interface SidebarProps {
   onNewRequest: () => void;
   onAddCollection: (name: string) => void;
   onDeleteCollection: (collectionId: string) => void;
+  onRenameCollection?: (collectionId: string, newName: string) => void;
   onNewRequestInCollection: (collectionId: string) => void;
   onDeleteRequest: (requestId: string) => void;
+  onRenameRequest?: (requestId: string, newName: string) => void;
   onReorderCollections?: (sourceIndex: number, destIndex: number) => void;
   onReorderRequests?: (collectionId: string, sourceIndex: number, destIndex: number) => void;
   onMoveRequest?: (sourceColId: string, destColId: string, sourceIndex: number, destIndex: number) => void;
@@ -57,8 +60,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNewRequest,
   onAddCollection,
   onDeleteCollection,
+  onRenameCollection,
   onNewRequestInCollection,
   onDeleteRequest,
+  onRenameRequest,
   onReorderCollections,
   onReorderRequests,
   onMoveRequest,
@@ -76,6 +81,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [isImportExportModalOpen, setIsImportExportModalOpen] = useState(false);
   const [selectedColForExport, setSelectedColForExport] = useState<string | undefined>(undefined);
   const [collapsedCols, setCollapsedCols] = useState<Record<string, boolean>>({});
+
+  // Inline Rename States
+  const [editingColId, setEditingColId] = useState<string | null>(null);
+  const [editingColName, setEditingColName] = useState('');
+  const [editingReqId, setEditingReqId] = useState<string | null>(null);
+  const [editingReqName, setEditingReqName] = useState('');
 
   // Drag and Drop States
   const [draggedColIndex, setDraggedColIndex] = useState<number | null>(null);
@@ -236,12 +247,58 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <GripVertical size={11} style={{ opacity: 0.4, cursor: 'grab', marginRight: '-2px' }} />
                       {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
                       <Folder size={14} color="#60a5fa" />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {col.name}
-                      </span>
+                      {editingColId === col.id ? (
+                        <input
+                          autoFocus
+                          value={editingColName}
+                          onChange={(e) => setEditingColName(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              if (onRenameCollection && editingColName.trim()) {
+                                onRenameCollection(col.id, editingColName.trim());
+                              }
+                              setEditingColId(null);
+                            } else if (e.key === 'Escape') {
+                              setEditingColId(null);
+                            }
+                          }}
+                          onBlur={() => {
+                            if (onRenameCollection && editingColName.trim()) {
+                              onRenameCollection(col.id, editingColName.trim());
+                            }
+                            setEditingColId(null);
+                          }}
+                          className="inline-rename-input"
+                          style={{ height: '22px', fontSize: '11px' }}
+                        />
+                      ) : (
+                        <span 
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            setEditingColId(col.id);
+                            setEditingColName(col.name);
+                          }}
+                          title="Double-click to rename collection"
+                          style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        >
+                          {col.name}
+                        </span>
+                      )}
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingColId(col.id);
+                          setEditingColName(col.name);
+                        }}
+                        className="sidebar-action-btn"
+                        title={`Rename "${col.name}"`}
+                      >
+                        <Edit3 size={11} color="var(--text-dim)" />
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -358,24 +415,73 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               <div className="sidebar-item-left" style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <GripVertical size={11} style={{ opacity: 0.35, flexShrink: 0 }} />
                                 <span className={`method-pill method-${req.method}`}>{req.method}</span>
-                                <span style={{ fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {req.name}
-                                </span>
+                                {editingReqId === req.id ? (
+                                  <input
+                                    autoFocus
+                                    value={editingReqName}
+                                    onChange={(e) => setEditingReqName(e.target.value)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        if (onRenameRequest && editingReqName.trim()) {
+                                          onRenameRequest(req.id, editingReqName.trim());
+                                        }
+                                        setEditingReqId(null);
+                                      } else if (e.key === 'Escape') {
+                                        setEditingReqId(null);
+                                      }
+                                    }}
+                                    onBlur={() => {
+                                      if (onRenameRequest && editingReqName.trim()) {
+                                        onRenameRequest(req.id, editingReqName.trim());
+                                      }
+                                      setEditingReqId(null);
+                                    }}
+                                    className="inline-rename-input"
+                                    style={{ height: '20px', fontSize: '11px' }}
+                                  />
+                                ) : (
+                                  <span 
+                                    onDoubleClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingReqId(req.id);
+                                      setEditingReqName(req.name);
+                                    }}
+                                    title="Double-click to rename request"
+                                    style={{ fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                  >
+                                    {req.name}
+                                  </span>
+                                )}
                               </div>
 
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (confirm(`Delete request "${req.name}"?`)) {
-                                    onDeleteRequest(req.id);
-                                  }
-                                }}
-                                className="sidebar-action-btn"
-                                title="Delete Request"
-                                style={{ opacity: isSelected ? 1 : 0.6 }}
-                              >
-                                <Trash2 size={11} />
-                              </button>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingReqId(req.id);
+                                    setEditingReqName(req.name);
+                                  }}
+                                  className="sidebar-action-btn"
+                                  title={`Rename "${req.name}"`}
+                                  style={{ opacity: isSelected ? 1 : 0.6 }}
+                                >
+                                  <Edit3 size={11} color="var(--text-dim)" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm(`Delete request "${req.name}"?`)) {
+                                      onDeleteRequest(req.id);
+                                    }
+                                  }}
+                                  className="sidebar-action-btn"
+                                  title="Delete Request"
+                                  style={{ opacity: isSelected ? 1 : 0.6 }}
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              </div>
                             </div>
                           );
                         })
