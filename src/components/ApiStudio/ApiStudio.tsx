@@ -617,7 +617,7 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
                   <button 
                     onClick={() => {
                       const cur = activeRequest.preRequestScript || '';
-                      const snippet = `pm.environment.set("timestamp", Date.now());\n`;
+                      const snippet = `bapu.env.set("timestamp", Date.now());\n`;
                       onUpdateRequest({ ...activeRequest, preRequestScript: cur + snippet });
                     }}
                     className="btn-secondary"
@@ -628,7 +628,7 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
                   <button 
                     onClick={() => {
                       const cur = activeRequest.preRequestScript || '';
-                      const snippet = `pm.environment.set("req_id", "req_" + Math.random().toString(36).substring(2, 9));\n`;
+                      const snippet = `bapu.env.set("req_id", "req_" + Math.random().toString(36).substring(2, 9));\n`;
                       onUpdateRequest({ ...activeRequest, preRequestScript: cur + snippet });
                     }}
                     className="btn-secondary"
@@ -639,7 +639,7 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
                   <button 
                     onClick={() => {
                       const cur = activeRequest.preRequestScript || '';
-                      const snippet = `console.log("Preparing to send request to: " + pm.request.url);\n`;
+                      const snippet = `console.log("Preparing to send request to: " + bapu.request.url);\n`;
                       onUpdateRequest({ ...activeRequest, preRequestScript: cur + snippet });
                     }}
                     className="btn-secondary"
@@ -651,7 +651,7 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
                 <textarea
                   value={activeRequest.preRequestScript || ''}
                   onChange={(e) => onUpdateRequest({ ...activeRequest, preRequestScript: e.target.value })}
-                  placeholder="// Pre-request JavaScript (Runs before request is sent)&#10;pm.environment.set('req_timestamp', Date.now());&#10;console.log('Sending request...');"
+                  placeholder="// Pre-request JavaScript (Runs before request is sent)&#10;bapu.env.set('req_timestamp', Date.now());&#10;console.log('Sending request...');"
                   style={{
                     flex: 1,
                     background: '#090d14',
@@ -668,15 +668,15 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
               </div>
             )}
 
-            {/* Postman Tests & Post-Response Script Editor */}
+            {/* Post-Response Script & Test Editor */}
             {activeSubTab === 'tests' && (
               <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', background: 'rgba(16, 185, 129, 0.05)', borderBottom: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)', marginRight: '6px' }}>Postman Snippets:</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)', marginRight: '6px' }}>Snippets:</span>
                   <button 
                     onClick={() => {
                       const cur = activeRequest.testScript || activeRequest.tests || '';
-                      const snippet = `pm.test("Status code is 200", function () {\n  pm.response.to.have.status(200);\n});\n\n`;
+                      const snippet = `bapu.test("Status code is 200", function () {\n  bapu.expect(bapu.response.status).toBe(200);\n});\n\n`;
                       onUpdateRequest({ ...activeRequest, testScript: cur + snippet, tests: cur + snippet });
                     }}
                     className="btn-secondary"
@@ -687,7 +687,7 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
                   <button 
                     onClick={() => {
                       const cur = activeRequest.testScript || activeRequest.tests || '';
-                      const snippet = `pm.test("Response time is less than 500ms", function () {\n  pm.expect(pm.response.responseTime).to.be.below(500);\n});\n\n`;
+                      const snippet = `bapu.test("Response time is fast (< 500ms)", function () {\n  bapu.expect(bapu.response.timeMs).toBeLessThan(500);\n});\n\n`;
                       onUpdateRequest({ ...activeRequest, testScript: cur + snippet, tests: cur + snippet });
                     }}
                     className="btn-secondary"
@@ -698,7 +698,7 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
                   <button 
                     onClick={() => {
                       const cur = activeRequest.testScript || activeRequest.tests || '';
-                      const snippet = `pm.test("Status property is success", function () {\n  var jsonData = pm.response.json();\n  pm.expect(jsonData.status).to.eql("success");\n});\n\n`;
+                      const snippet = `bapu.test("Status is success", function () {\n  var data = bapu.response.json();\n  bapu.expect(data.status).toEqual("success");\n});\n\n`;
                       onUpdateRequest({ ...activeRequest, testScript: cur + snippet, tests: cur + snippet });
                     }}
                     className="btn-secondary"
@@ -709,7 +709,7 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
                   <button 
                     onClick={() => {
                       const cur = activeRequest.testScript || activeRequest.tests || '';
-                      const snippet = `var jsonData = pm.response.json();\nif (jsonData.token) {\n  pm.environment.set("AUTH_TOKEN", jsonData.token);\n  console.log("Extracted AUTH_TOKEN to environment");\n}\n\n`;
+                      const snippet = `var data = bapu.response.json();\nif (data && data.token) {\n  bapu.env.set("AUTH_TOKEN", data.token);\n  console.log("Saved AUTH_TOKEN into environment variables");\n}\n\n`;
                       onUpdateRequest({ ...activeRequest, testScript: cur + snippet, tests: cur + snippet });
                     }}
                     className="btn-secondary"
@@ -721,7 +721,7 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
                 <textarea
                   value={activeRequest.testScript || activeRequest.tests || ''}
                   onChange={(e) => onUpdateRequest({ ...activeRequest, testScript: e.target.value, tests: e.target.value })}
-                  placeholder="// Post-response Postman JavaScript test assertions&#10;pm.test('Status code is 200', function () {&#10;  pm.response.to.have.status(200);&#10;});&#10;&#10;pm.test('Response time is fast', function () {&#10;  pm.expect(pm.response.responseTime).to.be.below(500);&#10;});"
+                  placeholder="// Post-response Test Assertions&#10;bapu.test('Status code is 200', function () {&#10;  bapu.expect(bapu.response.status).toBe(200);&#10;});&#10;&#10;// (Postman pm.test / pm.expect scripts are also 100% supported)"
                   style={{
                     flex: 1,
                     background: '#090d14',

@@ -324,6 +324,73 @@ test('Test script: evaluate pm.test, status assertions, and json body checks', (
   assert.strictEqual(testResults.every(t => t.passed), true);
 });
 
+test('Test script: evaluate native bapu.test, bapu.expect, and bapu.env namespace', () => {
+  const response = {
+    status: 200,
+    statusText: 'OK',
+    timeMs: 45,
+    headers: { 'content-type': 'application/json' },
+    data: { status: 'success', token: 'jwt_secret_9988' }
+  };
+
+  const testResults = [];
+  const testFn = (name, cb) => {
+    try {
+      cb();
+      testResults.push({ name, passed: true });
+    } catch (e) {
+      testResults.push({ name, passed: false, error: e.message });
+    }
+  };
+
+  const updatedEnv = {};
+  const bapu = {
+    test: testFn,
+    expect: (actual) => ({
+      toBe: (expected) => assert.strictEqual(actual, expected),
+      toEqual: (expected) => assert.deepStrictEqual(actual, expected),
+      toBeLessThan: (max) => assert.ok(actual < max),
+      to: {
+        equal: (expected) => assert.strictEqual(actual, expected),
+        have: {
+          property: (prop) => assert.ok(prop in actual)
+        }
+      }
+    }),
+    env: {
+      set: (k, v) => { updatedEnv[k] = v; }
+    },
+    response: {
+      status: response.status,
+      timeMs: response.timeMs,
+      json: () => response.data
+    }
+  };
+
+  const script = `
+    bapu.test("Status code is 200 OK", function () {
+      bapu.expect(bapu.response.status).toBe(200);
+    });
+
+    bapu.test("Response time is fast", function () {
+      bapu.expect(bapu.response.timeMs).toBeLessThan(500);
+    });
+
+    bapu.test("Received auth token", function () {
+      var data = bapu.response.json();
+      bapu.expect(data).to.have.property("token");
+      bapu.env.set("AUTH_TOKEN", data.token);
+    });
+  `;
+
+  const runner = new Function('bapu', script);
+  runner(bapu);
+
+  assert.strictEqual(testResults.length, 3);
+  assert.strictEqual(testResults.every(t => t.passed), true);
+  assert.strictEqual(updatedEnv.AUTH_TOKEN, 'jwt_secret_9988');
+});
+
 // ------------------------------------------------------------------------------
 // 6. DRAG AND DROP SEQUENCE REORDERING
 // ------------------------------------------------------------------------------

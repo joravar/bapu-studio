@@ -6,9 +6,60 @@ export interface ScriptExecutionResult {
   updatedEnvVars: Record<string, string>;
 }
 
-// Chai/Jest-style expect assertion builder compatible with Postman pm.expect()
+// Chai + Jest compatible expect assertion builder
 function createExpect(actual: any) {
   const self: any = {
+    // Jest-style top-level matchers
+    toBe(expected: any) {
+      if (actual !== expected) {
+        throw new Error(`Expected ${JSON.stringify(expected)} but got ${JSON.stringify(actual)}`);
+      }
+    },
+    toEqual(expected: any) {
+      if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+        throw new Error(`Expected ${JSON.stringify(expected)} but got ${JSON.stringify(actual)}`);
+      }
+    },
+    toBeLessThan(max: number) {
+      if (typeof actual !== 'number' || actual >= max) {
+        throw new Error(`Expected ${actual} to be less than ${max}`);
+      }
+    },
+    toBeGreaterThan(min: number) {
+      if (typeof actual !== 'number' || actual <= min) {
+        throw new Error(`Expected ${actual} to be greater than ${min}`);
+      }
+    },
+    toContain(item: any) {
+      if (typeof actual === 'string') {
+        if (!actual.includes(item)) {
+          throw new Error(`Expected "${actual}" to contain "${item}"`);
+        }
+      } else if (Array.isArray(actual)) {
+        if (!actual.includes(item)) {
+          throw new Error(`Expected array to contain ${JSON.stringify(item)}`);
+        }
+      } else {
+        throw new Error(`Cannot check toContain on ${typeof actual}`);
+      }
+    },
+    toBeDefined() {
+      if (actual === undefined || actual === null) {
+        throw new Error(`Expected value to be defined, got ${actual}`);
+      }
+    },
+    toBeTruthy() {
+      if (!actual) {
+        throw new Error(`Expected truthy value, got ${actual}`);
+      }
+    },
+    toBeFalsy() {
+      if (actual) {
+        throw new Error(`Expected falsy value, got ${actual}`);
+      }
+    },
+
+    // Chai / Postman BDD-style chaining (pm.expect().to.equal(), to.have.property())
     to: {
       equal(expected: any) {
         if (actual !== expected) {
@@ -76,7 +127,7 @@ function createExpect(actual: any) {
           }
         },
         status(code: number) {
-          const status = actual?.status ?? actual;
+          const status = actual?.status ?? actual?.code ?? actual;
           if (status !== code) {
             throw new Error(`Expected status ${code}, got ${status}`);
           }
@@ -103,7 +154,7 @@ function createExpect(actual: any) {
   return self;
 }
 
-// Executes Postman Pre-Request Scripts (before sending HTTP call)
+// Executes Pre-Request Scripts (before sending HTTP call)
 export function executePreRequestScript(
   script: string,
   request: ApiRequest,
@@ -116,7 +167,6 @@ export function executePreRequestScript(
     return { testResults: [], logs: [], updatedEnvVars: {} };
   }
 
-  // Create environment variable accessor map
   const varMap: Record<string, string> = {};
   env.variables.forEach(v => {
     varMap[v.key] = v.value;
@@ -134,42 +184,55 @@ export function executePreRequestScript(
     }
   };
 
-  const pm = {
-    environment: {
-      get: (key: string) => varMap[key] || '',
-      set: (key: string, value: any) => {
-        const valStr = String(value);
-        varMap[key] = valStr;
-        updatedEnvVars[key] = valStr;
-      },
-      has: (key: string) => key in varMap,
-      unset: (key: string) => {
-        delete varMap[key];
-        delete updatedEnvVars[key];
-      }
+  const envApi = {
+    get: (key: string) => varMap[key] || '',
+    set: (key: string, value: any) => {
+      const valStr = String(value);
+      varMap[key] = valStr;
+      updatedEnvVars[key] = valStr;
     },
-    variables: {
-      get: (key: string) => varMap[key] || '',
-      set: (key: string, value: any) => {
-        const valStr = String(value);
-        varMap[key] = valStr;
-        updatedEnvVars[key] = valStr;
-      }
-    },
-    request: {
-      url: request.url,
-      method: request.method,
-      headers: {
-        add: (headerObj: { key: string; value: string }) => {
-          logs.push(`Header added via script: ${headerObj.key}: ${headerObj.value}`);
-        }
+    has: (key: string) => key in varMap,
+    unset: (key: string) => {
+      delete varMap[key];
+      delete updatedEnvVars[key];
+    }
+  };
+
+  const reqObj = {
+    url: request.url,
+    method: request.method,
+    headers: {
+      add: (headerObj: { key: string; value: string }) => {
+        logs.push(`Header added via script: ${headerObj.key}: ${headerObj.value}`);
       }
     }
   };
 
+  const bapu = {
+    env: envApi,
+    environment: envApi,
+    variables: envApi,
+    request: reqObj
+  };
+
+  const pm = {
+    environment: envApi,
+    variables: envApi,
+    request: reqObj
+  };
+
   try {
-    const fn = new Function('pm', 'console', 'environment', script);
-    fn(pm, customConsole, pm.environment);
+    const fn = new Function(
+      'bapu',
+      'pm',
+      'console',
+      'env',
+      'environment',
+      'request',
+      'req',
+      script
+    );
+    fn(bapu, pm, customConsole, envApi, envApi, reqObj, reqObj);
   } catch (err: any) {
     logs.push(`[Script Error]: ${err.message}`);
   }
@@ -177,7 +240,7 @@ export function executePreRequestScript(
   return { testResults: [], logs, updatedEnvVars };
 }
 
-// Executes Postman Tests & Post-Response Scripts (after HTTP response is received)
+// Executes Tests & Post-Response Scripts (after HTTP response is received)
 export function executeTestScript(
   script: string,
   response: ApiResponse,
@@ -218,75 +281,118 @@ export function executeTestScript(
     }
   };
 
-  const pm = {
-    test,
-    expect: createExpect,
-    environment: {
-      get: (key: string) => varMap[key] || '',
-      set: (key: string, value: any) => {
-        const valStr = String(value);
-        varMap[key] = valStr;
-        updatedEnvVars[key] = valStr;
-      },
-      has: (key: string) => key in varMap
+  const envApi = {
+    get: (key: string) => varMap[key] || '',
+    set: (key: string, value: any) => {
+      const valStr = String(value);
+      varMap[key] = valStr;
+      updatedEnvVars[key] = valStr;
     },
-    variables: {
-      get: (key: string) => varMap[key] || '',
-      set: (key: string, value: any) => {
-        const valStr = String(value);
-        varMap[key] = valStr;
-        updatedEnvVars[key] = valStr;
-      }
-    },
-    response: {
-      code: response.status,
-      status: response.statusText,
-      responseTime: response.timeMs,
-      headers: response.headers || {},
-      json: () => response.data,
-      text: () => typeof response.data === 'string' ? response.data : JSON.stringify(response.data),
-      to: {
-        have: {
-          status: (code: number) => {
-            if (response.status !== code) {
-              throw new Error(`Expected status ${code}, got ${response.status}`);
-            }
-          },
-          header: (headerKey: string, val?: string) => {
-            const lowerKey = headerKey.toLowerCase();
-            const found = Object.keys(response.headers || {}).find(k => k.toLowerCase() === lowerKey);
-            if (!found) {
-              throw new Error(`Expected response to have header "${headerKey}"`);
-            }
-            if (val !== undefined && response.headers[found] !== val) {
-              throw new Error(`Expected header "${headerKey}" to equal "${val}", got "${response.headers[found]}"`);
-            }
+    has: (key: string) => key in varMap,
+    unset: (key: string) => {
+      delete varMap[key];
+      delete updatedEnvVars[key];
+    }
+  };
+
+  const responseProxy = {
+    status: response.status,
+    code: response.status,
+    statusText: response.statusText,
+    timeMs: response.timeMs,
+    responseTime: response.timeMs,
+    sizeBytes: response.sizeBytes,
+    headers: response.headers || {},
+    data: response.data,
+    json: () => response.data,
+    text: () => typeof response.data === 'string' ? response.data : JSON.stringify(response.data),
+    to: {
+      have: {
+        status: (code: number) => {
+          if (response.status !== code) {
+            throw new Error(`Expected status ${code}, got ${response.status}`);
           }
         },
-        be: {
-          ok: () => {
-            if (response.status < 200 || response.status >= 300) {
-              throw new Error(`Expected 2xx status, got ${response.status}`);
-            }
-          },
-          clientError: () => {
-            if (response.status < 400 || response.status >= 500) {
-              throw new Error(`Expected 4xx status, got ${response.status}`);
-            }
-          },
-          serverError: () => {
-            if (response.status < 500) {
-              throw new Error(`Expected 5xx status, got ${response.status}`);
-            }
+        header: (headerKey: string, val?: string) => {
+          const lowerKey = headerKey.toLowerCase();
+          const found = Object.keys(response.headers || {}).find(k => k.toLowerCase() === lowerKey);
+          if (!found) {
+            throw new Error(`Expected response to have header "${headerKey}"`);
+          }
+          if (val !== undefined && response.headers[found] !== val) {
+            throw new Error(`Expected header "${headerKey}" to equal "${val}", got "${response.headers[found]}"`);
+          }
+        }
+      },
+      be: {
+        ok: () => {
+          if (response.status < 200 || response.status >= 300) {
+            throw new Error(`Expected 2xx status, got ${response.status}`);
+          }
+        },
+        clientError: () => {
+          if (response.status < 400 || response.status >= 500) {
+            throw new Error(`Expected 4xx status, got ${response.status}`);
+          }
+        },
+        serverError: () => {
+          if (response.status < 500) {
+            throw new Error(`Expected 5xx status, got ${response.status}`);
           }
         }
       }
     }
   };
 
+  // Primary Bapu namespace
+  const bapu = {
+    test,
+    expect: createExpect,
+    env: envApi,
+    environment: envApi,
+    variables: envApi,
+    response: responseProxy,
+    request: {
+      url: request.url,
+      method: request.method,
+      headers: request.headers
+    }
+  };
+
+  // Postman compatibility alias
+  const pm = {
+    test,
+    expect: createExpect,
+    environment: envApi,
+    variables: envApi,
+    response: responseProxy,
+    request: bapu.request
+  };
+
   try {
-    const fn = new Function('pm', 'test', 'console', 'response', script);
-    fn(pm, test, customConsole, response);
+    const fn = new Function(
+      'bapu',
+      'pm',
+      'test',
+      'expect',
+      'console',
+      'response',
+      'res',
+      'env',
+      'environment',
+      script
+    );
+    fn(
+      bapu,
+      pm,
+      test,
+      createExpect,
+      customConsole,
+      responseProxy,
+      responseProxy,
+      envApi,
+      envApi
+    );
   } catch (err: any) {
     testResults.push({
       name: 'Script Syntax / Execution',
