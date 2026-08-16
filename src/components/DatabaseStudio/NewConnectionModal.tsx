@@ -74,6 +74,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
   const [database, setDatabase] = useState('neondb');
   const [username, setUsername] = useState('alex');
   const [password, setPassword] = useState('');
+  const [ssl, setSsl] = useState(true);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -93,6 +94,10 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
     if (parsed.displayName && (!name || name.startsWith('New ') || name.includes('Database'))) {
       setName(parsed.displayName);
     }
+    // Auto-enable SSL for cloud connection strings
+    if (val.includes('sslmode') || val.includes('neon.tech') || val.includes('supabase') || val.includes('tidbcloud') || val.includes('upstash') || val.includes('aiven')) {
+      setSsl(true);
+    }
   };
 
   const handleTypeChange = (newType: DbType) => {
@@ -102,6 +107,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       setPort('5432');
       setUsername('postgres');
       setDatabase('postgres');
+      setSsl(true);
     } else if (newType === 'mysql') {
       setName('MySQL Database');
       setPort('3306');
@@ -115,6 +121,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
     } else if (newType === 'sqlite') {
       setName('Local SQLite DB');
       setDatabase('app_local.sqlite');
+      setSsl(false);
     } else if (newType === 'redis') {
       setName('Redis Cache');
       setPort('6379');
@@ -134,6 +141,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       database: database.trim() || (type === 'mongodb' ? 'test' : 'postgres'),
       username,
       password,
+      ssl,
       connectionString: connectionString.trim() || undefined
     };
 
@@ -170,6 +178,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
     (dbConfig as any).port = port;
     (dbConfig as any).username = username;
     (dbConfig as any).password = password;
+    (dbConfig as any).ssl = ssl;
 
     // Fetch real schema from server if available
     const schemaRes = await DatabaseService.fetchSchema(dbConfig);
@@ -431,6 +440,23 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                   </div>
                 )}
               </>
+            )}
+
+            {/* SSL / TLS Toggle for Cloud Databases */}
+            {type !== 'sqlite' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' }}>
+                <input
+                  type="checkbox"
+                  id="db-ssl-toggle"
+                  checked={ssl}
+                  onChange={(e) => setSsl(e.target.checked)}
+                  style={{ width: '14px', height: '14px', accentColor: '#10b981', cursor: 'pointer' }}
+                />
+                <label htmlFor="db-ssl-toggle" style={{ fontSize: '11px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Shield size={12} color="#10b981" />
+                  <span>Enable SSL / TLS Encryption (Required for Neon, Supabase, Cloud DBs)</span>
+                </label>
+              </div>
             )}
 
             {/* Test Connection Diagnostic Result */}

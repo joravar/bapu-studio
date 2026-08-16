@@ -37,22 +37,39 @@ function createWindow() {
 
 // ------------------------------------------------------------------------------
 // NATIVE DATABASE DRIVER IPC HANDLERS (PostgreSQL, MySQL, MongoDB)
-// ------------------------------------------------------------------------------
+// Helper to build robust Postgres config with auto SSL for Neon/Supabase/Cloud DBs
+function getPgConfig(config) {
+  const isSslNeeded = config.ssl !== false && (
+    config.ssl === true || 
+    (config.connectionString && (config.connectionString.includes('sslmode') || config.connectionString.includes('neon.tech') || config.connectionString.includes('supabase') || config.connectionString.includes('aiven') || config.connectionString.includes('render.com') || config.connectionString.includes('aws'))) ||
+    (config.host && !config.host.includes('localhost') && !config.host.includes('127.0.0.1'))
+  );
+
+  if (config.connectionString) {
+    return {
+      connectionString: config.connectionString,
+      ssl: isSslNeeded ? { rejectUnauthorized: false } : undefined,
+      connectionTimeoutMillis: 7000
+    };
+  }
+
+  return {
+    host: config.host || 'localhost',
+    port: parseInt(config.port, 10) || 5432,
+    database: config.database || 'postgres',
+    user: config.username || 'postgres',
+    password: config.password || '',
+    connectionTimeoutMillis: 7000,
+    ssl: isSslNeeded ? { rejectUnauthorized: false } : undefined
+  };
+}
 
 // 1. Test Database Connection
 ipcMain.handle('db:test-connection', async (event, config) => {
   const startTime = Date.now();
   try {
     if (config.type === 'postgres') {
-      const pool = new pg.Pool({
-        host: config.host || 'localhost',
-        port: parseInt(config.port, 10) || 5432,
-        database: config.database || 'postgres',
-        user: config.username || 'postgres',
-        password: config.password || '',
-        connectionTimeoutMillis: 5000,
-        ssl: config.ssl ? { rejectUnauthorized: false } : undefined
-      });
+      const pool = new pg.Pool(getPgConfig(config));
       const client = await pool.connect();
       await client.query('SELECT 1');
       client.release();
@@ -62,13 +79,19 @@ ipcMain.handle('db:test-connection', async (event, config) => {
     }
 
     if (config.type === 'mysql') {
+      const isSslNeeded = config.ssl !== false && (
+        config.ssl === true || 
+        (config.host && !config.host.includes('localhost') && !config.host.includes('127.0.0.1'))
+      );
+
       const connection = await mysql.createConnection({
         host: config.host || 'localhost',
         port: parseInt(config.port, 10) || 3306,
         database: config.database,
         user: config.username || 'root',
         password: config.password || '',
-        connectTimeout: 5000
+        connectTimeout: 7000,
+        ssl: isSslNeeded ? { rejectUnauthorized: false } : undefined
       });
       await connection.query('SELECT 1');
       await connection.end();
@@ -84,7 +107,7 @@ ipcMain.handle('db:test-connection', async (event, config) => {
         const port = config.port || 27017;
         uri = `mongodb://${auth}${host}:${port}/${config.database || 'admin'}`;
       }
-      const client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000 });
+      const client = new MongoClient(uri, { serverSelectionTimeoutMS: 7000 });
       await client.connect();
       await client.db(config.database || 'admin').command({ ping: 1 });
       await client.close();
@@ -105,16 +128,7 @@ ipcMain.handle('db:query', async (event, { config, sql }) => {
     if (config.type === 'postgres') {
       let pool = pgPools.get(config.id);
       if (!pool) {
-        pool = new pg.Pool({
-          host: config.host || 'localhost',
-          port: parseInt(config.port, 10) || 5432,
-          database: config.database || 'postgres',
-          user: config.username || 'postgres',
-          password: config.password || '',
-          max: 10,
-          idleTimeoutMillis: 30000,
-          ssl: config.ssl ? { rejectUnauthorized: false } : undefined
-        });
+        pool = new pg.Pool(getPgConfig(config));
         pgPools.set(config.id, pool);
       }
 
@@ -233,14 +247,7 @@ ipcMain.handle('db:get-schema', async (event, config) => {
     if (config.type === 'postgres') {
       let pool = pgPools.get(config.id);
       if (!pool) {
-        pool = new pg.Pool({
-          host: config.host || 'localhost',
-          port: parseInt(config.port, 10) || 5432,
-          database: config.database || 'postgres',
-          user: config.username || 'postgres',
-          password: config.password || '',
-          ssl: config.ssl ? { rejectUnauthorized: false } : undefined
-        });
+        pool = new pg.Pool(getPgConfig(config));
         pgPools.set(config.id, pool);
       }
 
