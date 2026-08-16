@@ -573,7 +573,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <div className="sidebar-item-left" style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}>
+                  <div 
+                    className="sidebar-item-left" 
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onDoubleClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setEditingDbId(db.id);
+                      setEditingDbName(db.name);
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0, cursor: 'pointer' }}
+                  >
                     <GripVertical size={11} style={{ opacity: 0.35, flexShrink: 0 }} />
                     <HardDrive size={14} color={db.isConnected ? '#10b981' : '#64748b'} style={{ flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -606,13 +616,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         />
                       ) : (
                         <div 
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onDoubleClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setEditingDbId(db.id);
-                            setEditingDbName(db.name);
-                          }}
                           title="Double-click to rename connection"
                           style={{ fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                         >
