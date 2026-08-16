@@ -47,6 +47,7 @@ interface SidebarProps {
   onSelectDb: (db: DatabaseConnection) => void;
   onAddDatabase: (db: DatabaseConnection) => void;
   onDeleteDatabase: (dbId: string) => void;
+  onRenameDatabase?: (dbId: string, newName: string) => void;
   onReorderDatabases?: (sourceIndex: number, destIndex: number) => void;
   history: HistoryItem[];
 }
@@ -73,6 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectDb,
   onAddDatabase,
   onDeleteDatabase,
+  onRenameDatabase,
   onReorderDatabases,
   history
 }) => {
@@ -87,6 +89,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [editingColName, setEditingColName] = useState('');
   const [editingReqId, setEditingReqId] = useState<string | null>(null);
   const [editingReqName, setEditingReqName] = useState('');
+  const [editingDbId, setEditingDbId] = useState<string | null>(null);
+  const [editingDbName, setEditingDbName] = useState('');
 
   // Drag and Drop States
   const [draggedColIndex, setDraggedColIndex] = useState<number | null>(null);
@@ -555,31 +559,82 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <div className="sidebar-item-left" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <GripVertical size={11} style={{ opacity: 0.35 }} />
-                    <HardDrive size={14} color={db.isConnected ? '#10b981' : '#64748b'} />
-                    <div>
-                      <div style={{ fontSize: '12px', fontWeight: 600 }}>{db.name}</div>
+                  <div className="sidebar-item-left" style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}>
+                    <GripVertical size={11} style={{ opacity: 0.35, flexShrink: 0 }} />
+                    <HardDrive size={14} color={db.isConnected ? '#10b981' : '#64748b'} style={{ flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {editingDbId === db.id ? (
+                        <input
+                          autoFocus
+                          value={editingDbName}
+                          onChange={(e) => setEditingDbName(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              if (onRenameDatabase && editingDbName.trim()) {
+                                onRenameDatabase(db.id, editingDbName.trim());
+                              }
+                              setEditingDbId(null);
+                            } else if (e.key === 'Escape') {
+                              setEditingDbId(null);
+                            }
+                          }}
+                          onBlur={() => {
+                            if (onRenameDatabase && editingDbName.trim()) {
+                              onRenameDatabase(db.id, editingDbName.trim());
+                            }
+                            setEditingDbId(null);
+                          }}
+                          className="inline-rename-input"
+                          style={{ height: '20px', fontSize: '11px' }}
+                        />
+                      ) : (
+                        <div 
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            setEditingDbId(db.id);
+                            setEditingDbName(db.name);
+                          }}
+                          title="Double-click to rename connection"
+                          style={{ fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        >
+                          {db.name}
+                        </div>
+                      )}
                       <div style={{ fontSize: '10px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
                         {db.type.toUpperCase()} • {db.database}
                       </div>
                     </div>
                   </div>
 
-                  {databases.length > 1 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (confirm(`Remove database connection "${db.name}"?`)) {
-                          onDeleteDatabase(db.id);
-                        }
+                        setEditingDbId(db.id);
+                        setEditingDbName(db.name);
                       }}
                       className="sidebar-action-btn"
-                      title="Remove Connection"
+                      title={`Rename "${db.name}"`}
+                      style={{ opacity: isSelected ? 1 : 0.6 }}
                     >
-                      <Trash2 size={11} />
+                      <Edit3 size={11} color="var(--text-dim)" />
                     </button>
-                  )}
+                    {databases.length > 1 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm(`Remove database connection "${db.name}"?`)) {
+                            onDeleteDatabase(db.id);
+                          }
+                        }}
+                        className="sidebar-action-btn"
+                        title="Remove Connection"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}

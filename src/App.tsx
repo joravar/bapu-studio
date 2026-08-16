@@ -327,6 +327,13 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleRenameDatabase = (dbId: string, newName: string) => {
+    setDatabases(prev => prev.map(db => db.id === dbId ? { ...db, name: newName } : db));
+    if (activeDb && activeDb.id === dbId) {
+      setActiveDb(prev => prev ? { ...prev, name: newName } : prev);
+    }
+  };
+
   const handleImportCollection = (newCol: Collection) => {
     setCollections(prev => [...prev, newCol]);
     if (newCol.requests.length > 0) {
@@ -378,6 +385,7 @@ export const App: React.FC = () => {
             }}
             onAddDatabase={handleAddDatabase}
             onDeleteDatabase={handleDeleteDatabase}
+            onRenameDatabase={handleRenameDatabase}
             onReorderDatabases={handleReorderDatabases}
             history={history}
           />
@@ -411,15 +419,15 @@ export const App: React.FC = () => {
               onClick={() => setActiveTab('db')}
             >
               <Database size={13} color="#10b981" />
-              <span>SQL Studio ({activeDb.database})</span>
+              <span>SQL Studio ({activeDb ? activeDb.name : 'No DB'})</span>
             </div>
 
             <div 
               className={`workspace-tab ${activeTab === 'streams' ? 'active' : ''}`}
               onClick={() => setActiveTab('streams')}
             >
-              <Radio size={13} color="#38bdf8" />
-              <span>Stream Studio (SSE/WS)</span>
+              <Radio size={13} color="#a855f7" />
+              <span>Stream Studio (SSE &amp; WS)</span>
             </div>
 
             <div 
@@ -447,6 +455,7 @@ export const App: React.FC = () => {
               <DatabaseStudio
                 activeDb={activeDb}
                 onRecordHistory={handleRecordHistory}
+                onRenameDatabase={handleRenameDatabase}
                 onDatabaseLoaded={(newDb) => {
                   setDatabases(prev => [newDb, ...prev]);
                   setActiveDb(newDb);

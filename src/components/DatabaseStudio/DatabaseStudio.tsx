@@ -20,6 +20,7 @@ interface DatabaseStudioProps {
   activeDb: DatabaseConnection;
   onRecordHistory: (title: string, subtitle: string, status?: number) => void;
   onDatabaseLoaded?: (db: DatabaseConnection) => void;
+  onRenameDatabase?: (dbId: string, newName: string) => void;
 }
 
 interface QueryResult {
@@ -33,7 +34,8 @@ interface QueryResult {
 export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
   activeDb,
   onRecordHistory,
-  onDatabaseLoaded
+  onDatabaseLoaded,
+  onRenameDatabase
 }) => {
   const [selectedTable, setSelectedTable] = useState<TableSchema | null>(
     activeDb.tables[0] || null
@@ -144,8 +146,18 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
         style={{ width: `${dbSidebarWidth}px`, flexShrink: 0, borderRight: 'none' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
-          <Database size={15} color="#10b981" />
-          <span style={{ fontWeight: 700, fontSize: '12px' }}>{activeDb.database}</span>
+          <Database size={15} color="#10b981" style={{ flexShrink: 0 }} />
+          <input
+            type="text"
+            value={activeDb.name}
+            onChange={(e) => {
+              if (onRenameDatabase) onRenameDatabase(activeDb.id, e.target.value);
+            }}
+            placeholder="Connection Name"
+            className="request-title-input"
+            style={{ fontSize: '12px', fontWeight: 700, padding: '2px 6px', width: '100%', minWidth: '100px' }}
+            title="Click to rename connection"
+          />
         </div>
 
         {/* Local SQLite Drag and Drop Zone */}

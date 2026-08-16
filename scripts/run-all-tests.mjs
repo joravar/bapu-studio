@@ -555,6 +555,21 @@ test('Renaming: update nested API request title', () => {
   assert.strictEqual(collections[0].requests[1].name, 'Register');
 });
 
+test('Renaming: update database connection driver title', () => {
+  let databases = [
+    { id: 'db-1', name: 'Local Dev DB', type: 'sqlite', database: 'main.sqlite' },
+    { id: 'db-2', name: 'Prod Mongo', type: 'mongodb', database: 'production' }
+  ];
+
+  const targetDbId = 'db-1';
+  const newDbName = 'Primary SQLite Database';
+
+  databases = databases.map(db => db.id === targetDbId ? { ...db, name: newDbName } : db);
+
+  assert.strictEqual(databases[0].name, 'Primary SQLite Database');
+  assert.strictEqual(databases[1].name, 'Prod Mongo');
+});
+
 // ------------------------------------------------------------------------------
 // SUMMARY
 // ------------------------------------------------------------------------------
