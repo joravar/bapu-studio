@@ -36,7 +36,7 @@ export const App: React.FC = () => {
         if (parsed[0]?.requests[0]) return parsed[0].requests[0];
       }
     } catch {}
-    return INITIAL_COLLECTIONS[0]?.requests[0] || null;
+    return null;
   });
 
   const [databases, setDatabases] = useState<DatabaseConnection[]>(() => {
@@ -55,7 +55,7 @@ export const App: React.FC = () => {
         if (parsed[0]) return parsed[0];
       }
     } catch {}
-    return INITIAL_DATABASES[0];
+    return INITIAL_DATABASES[0] || { id: 'db-empty', name: 'No Connection', type: 'postgres', database: '', isConnected: false, tables: [] };
   });
 
   const [environments, setEnvironments] = useState<Environment[]>(() => {
