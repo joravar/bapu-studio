@@ -15,17 +15,10 @@ export interface ConnectionTestResult {
   message: string;
 }
 
-// Helper to check if running inside Electron desktop app
-function isElectron(): boolean {
-  return typeof window !== 'undefined' && Boolean((window as any).require || (window as any).electron);
-}
-
-function getIpcRenderer() {
-  if (typeof window !== 'undefined' && (window as any).require) {
-    try {
-      const { ipcRenderer } = (window as any).require('electron');
-      return ipcRenderer;
-    } catch {}
+// Helper to access the secure context bridge exposed by preload.cjs
+function getBridge(): any {
+  if (typeof window !== 'undefined' && (window as any).bapuBridge) {
+    return (window as any).bapuBridge;
   }
   return null;
 }
@@ -50,10 +43,10 @@ export const DatabaseService = {
       };
     }
 
-    const ipc = getIpcRenderer();
-    if (ipc) {
+    const bridge = getBridge();
+    if (bridge) {
       try {
-        const res = await ipc.invoke('db:test-connection', config);
+        const res = await bridge.dbTestConnection(config);
         return res;
       } catch (err: any) {
         return { success: false, message: err.message || 'Connection failed' };
@@ -72,12 +65,12 @@ export const DatabaseService = {
   async executeQuery(db: DatabaseConnection, sql: string): Promise<SqlQueryResult> {
     const hasRealCredentials = Boolean(db.connectionString || ((db as any).host && !(db as any).host.includes('localhost') && (db as any).password));
     const isDemoDb = !hasRealCredentials || db.id.includes('demo') || db.id === 'db-main' || db.id === 'db-cache' || db.id === 'db-1' || db.id === 'db-2' || db.name.toLowerCase().includes('demo') || db.name.toLowerCase().includes('sample');
-    const ipc = getIpcRenderer();
+    const bridge = getBridge();
 
     // If it's a real user-added database with host credentials, run through native IPC driver
-    if (ipc && !isDemoDb && ((db as any).host || db.connectionString)) {
+    if (bridge && !isDemoDb && ((db as any).host || db.connectionString)) {
       try {
-        const res = await ipc.invoke('db:query', { config: db, sql });
+        const res = await bridge.dbQuery({ config: db, sql });
         return res;
       } catch (err: any) {
         return {
@@ -223,10 +216,10 @@ export const DatabaseService = {
   },
 
   async fetchSchema(db: DatabaseConnection): Promise<{ success: boolean; tables: TableSchema[]; message?: string }> {
-    const ipc = getIpcRenderer();
-    if (ipc) {
+    const bridge = getBridge();
+    if (bridge) {
       try {
-        const res = await ipc.invoke('db:get-schema', db);
+        const res = await bridge.dbGetSchema(db);
         if (res.success && res.tables?.length > 0) {
           return res;
         }

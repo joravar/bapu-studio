@@ -109,8 +109,8 @@ export const INITIAL_ENVIRONMENTS: Environment[] = [
     name: 'Local Development',
     variables: [
       { id: 'v1', key: 'API_BASE_URL', value: 'http://localhost:8080', enabled: true, isSecret: false },
-      { id: 'v2', key: 'AUTH_TOKEN', value: 'jwt_local_dev_secret_token_123', enabled: true, isSecret: true },
-      { id: 'v3', key: 'API_SECRET_KEY', value: 'sec_test_demo_key_example_99182', enabled: true, isSecret: true },
+      { id: 'v2', key: 'AUTH_TOKEN', value: 'EXAMPLE_DEV_TOKEN_REPLACE_ME', enabled: true, isSecret: true },
+      { id: 'v3', key: 'API_SECRET_KEY', value: 'EXAMPLE_API_KEY_REPLACE_ME', enabled: true, isSecret: true },
       { id: 'v4', key: 'DB_PORT', value: '5432', enabled: true, isSecret: false }
     ]
   },
@@ -119,8 +119,8 @@ export const INITIAL_ENVIRONMENTS: Environment[] = [
     name: 'Production Cloud',
     variables: [
       { id: 'v5', key: 'API_BASE_URL', value: 'https://api.example.com', enabled: true, isSecret: false },
-      { id: 'v6', key: 'AUTH_TOKEN', value: 'jwt_live_prod_secret_token_999', enabled: true, isSecret: true },
-      { id: 'v7', key: 'API_SECRET_KEY', value: 'sec_live_prod_key_example_38819', enabled: true, isSecret: true },
+      { id: 'v6', key: 'AUTH_TOKEN', value: 'EXAMPLE_PROD_TOKEN_REPLACE_ME', enabled: true, isSecret: true },
+      { id: 'v7', key: 'API_SECRET_KEY', value: 'EXAMPLE_PROD_API_KEY_REPLACE_ME', enabled: true, isSecret: true },
       { id: 'v8', key: 'DB_PORT', value: '6543', enabled: true, isSecret: false }
     ]
   }

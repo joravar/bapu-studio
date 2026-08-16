@@ -71,7 +71,7 @@ export const AiCopilotModal: React.FC<AiCopilotModalProps> = ({
               role: "admin",
               isVerified: true
             },
-            token: "jwt_bapu_token_sample_887766",
+            token: "EXAMPLE_TOKEN_REPLACE_ME",
             expires_in: 3600
           }, null, 2));
         } else {

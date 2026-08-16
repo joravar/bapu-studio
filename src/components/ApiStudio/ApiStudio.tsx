@@ -222,8 +222,8 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
           status = 200;
           statusText = '200 OK (Sandbox Active)';
           responseData = {
-            token: 'jwt_sandbox_token_sample_88219_bapu',
-            accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkVtaWx5cyIsImlhdCI6MTUxNjIzOTAyMn0',
+            token: 'EXAMPLE_TOKEN_REPLACE_ME',
+            accessToken: 'EXAMPLE_ACCESS_TOKEN_REPLACE_ME',
             id: 15,
             username: 'emilys',
             email: 'emily.johnson@x.dummyjson.com',
@@ -235,8 +235,8 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
         // Fallback simulation for sandbox testing or CORS-restricted browser calls
         if ((resolvedUrl.includes('reqres.in') || resolvedUrl.includes('dummyjson') || resolvedUrl.includes('auth') || resolvedUrl.includes('login'))) {
           responseData = {
-            token: 'jwt_sandbox_token_sample_88219_bapu',
-            accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkVtaWx5cyIsImlhdCI6MTUxNjIzOTAyMn0',
+            token: 'EXAMPLE_TOKEN_REPLACE_ME',
+            accessToken: 'EXAMPLE_ACCESS_TOKEN_REPLACE_ME',
             id: 15,
             username: 'emilys',
             email: 'emily.johnson@x.dummyjson.com',

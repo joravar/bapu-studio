@@ -19,9 +19,10 @@ function createWindow() {
     title: 'Bapu Studio — Developer Cockpit',
     autoHideMenuBar: true,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      webSecurity: false,
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: true,
+      preload: path.join(__dirname, 'preload.cjs'),
     },
   });
 
@@ -333,7 +334,8 @@ ipcMain.handle('db:get-schema', async (event, config) => {
       for (const row of tableRows) {
         const tableName = Object.values(row)[0];
         try {
-          const [colRows] = await pool.query(`DESCRIBE \`${tableName}\``);
+          const safeName = tableName.replace(/`/g, '``');
+          const [colRows] = await pool.query(`DESCRIBE \`${safeName}\``);
           tables.push({
             name: tableName,
             rowCount: 1000,
