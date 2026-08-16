@@ -24,24 +24,65 @@ export function parseDatabaseUri(uri: string): {
   const trimmed = uri.trim();
   if (!trimmed) return {};
 
-  let type: DbType | undefined;
-  if (trimmed.startsWith('postgres://') || trimmed.startsWith('postgresql://')) type = 'postgres';
-  else if (trimmed.startsWith('mysql://') || trimmed.startsWith('mariadb://')) type = 'mysql';
-  else if (trimmed.startsWith('mongodb://') || trimmed.startsWith('mongodb+srv://')) type = 'mongodb';
-  else if (trimmed.startsWith('redis://') || trimmed.startsWith('rediss://')) type = 'redis';
-  else if (trimmed.startsWith('sqlite://') || trimmed.endsWith('.db') || trimmed.endsWith('.sqlite') || trimmed.endsWith('.sqlite3')) type = 'sqlite';
+  let type: DbType = 'postgres';
+  let cleanUri = trimmed;
+
+  if (trimmed.startsWith('postgres://') || trimmed.startsWith('postgresql://')) {
+    type = 'postgres';
+    cleanUri = trimmed.replace(/^postgres(?:ql)?:\/\//i, '');
+  } else if (trimmed.startsWith('mysql://') || trimmed.startsWith('mariadb://')) {
+    type = 'mysql';
+    cleanUri = trimmed.replace(/^(?:mysql|mariadb):\/\//i, '');
+  } else if (trimmed.startsWith('mongodb://') || trimmed.startsWith('mongodb+srv://')) {
+    type = 'mongodb';
+    cleanUri = trimmed.replace(/^mongodb(?:\+srv)?:\/\//i, '');
+  } else if (trimmed.startsWith('redis://') || trimmed.startsWith('rediss://')) {
+    type = 'redis';
+    cleanUri = trimmed.replace(/^redis(?:s)?:\/\//i, '');
+  } else if (trimmed.startsWith('sqlite://') || trimmed.endsWith('.db') || trimmed.endsWith('.sqlite') || trimmed.endsWith('.sqlite3')) {
+    type = 'sqlite';
+    const dbName = trimmed.replace(/^sqlite:\/\//i, '').replace(/^[\\/]+/, '');
+    return { type: 'sqlite', database: dbName, displayName: `SQLite (${dbName || 'Local'})` };
+  }
 
   try {
-    // Handle standard URL parsing
-    const normalizedUri = trimmed.replace('mongodb+srv://', 'http://').replace('rediss://', 'http://').replace('postgresql://', 'http://').replace('postgres://', 'http://').replace('mysql://', 'http://').replace('redis://', 'http://').replace('sqlite://', 'http://');
-    const parsed = new URL(normalizedUri);
+    let username: string | undefined;
+    let password: string | undefined;
+    let host: string | undefined;
+    let port: string | undefined;
+    let database: string | undefined;
 
-    const username = parsed.username ? decodeURIComponent(parsed.username) : undefined;
-    const password = parsed.password ? decodeURIComponent(parsed.password) : undefined;
-    const host = parsed.hostname || undefined;
-    const port = parsed.port || (type === 'postgres' ? '5432' : type === 'mysql' ? '3306' : type === 'mongodb' ? '27017' : type === 'redis' ? '6379' : undefined);
-    let database = parsed.pathname ? parsed.pathname.replace(/^\//, '') : undefined;
-    if (database && database.includes('?')) database = database.split('?')[0];
+    // Check for user:password@host structure
+    const lastAtIndex = cleanUri.lastIndexOf('@');
+    if (lastAtIndex !== -1) {
+      const authPart = cleanUri.substring(0, lastAtIndex);
+      const colonIndex = authPart.indexOf(':');
+      if (colonIndex !== -1) {
+        username = decodeURIComponent(authPart.substring(0, colonIndex));
+        password = decodeURIComponent(authPart.substring(colonIndex + 1));
+      } else {
+        username = decodeURIComponent(authPart);
+      }
+      cleanUri = cleanUri.substring(lastAtIndex + 1);
+    }
+
+    // Parse host, port, database from cleanUri (e.g. host:5432/dbname?sslmode=require)
+    const slashIndex = cleanUri.indexOf('/');
+    const hostPortPart = slashIndex !== -1 ? cleanUri.substring(0, slashIndex) : cleanUri;
+    const pathAndQuery = slashIndex !== -1 ? cleanUri.substring(slashIndex + 1) : '';
+
+    const colonHostIndex = hostPortPart.indexOf(':');
+    if (colonHostIndex !== -1) {
+      host = hostPortPart.substring(0, colonHostIndex);
+      port = hostPortPart.substring(colonHostIndex + 1);
+    } else {
+      host = hostPortPart;
+      port = type === 'postgres' ? '5432' : type === 'mysql' ? '3306' : type === 'mongodb' ? '27017' : type === 'redis' ? '6379' : undefined;
+    }
+
+    if (pathAndQuery) {
+      database = pathAndQuery.split('?')[0];
+    }
 
     const hostLabel = host ? (host.length > 25 ? host.slice(0, 22) + '...' : host) : 'Database';
     const typeLabel = type ? type.toUpperCase() : 'Cloud DB';
@@ -50,7 +91,7 @@ export function parseDatabaseUri(uri: string): {
       type,
       host,
       port,
-      database: database || (type === 'mongodb' ? 'test' : 'main'),
+      database: database || (type === 'mongodb' ? 'test' : 'neondb'),
       username,
       password,
       displayName: `${typeLabel} (${hostLabel})`

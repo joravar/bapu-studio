@@ -674,36 +674,61 @@ test('Database Studio: MongoDB document key extraction for dynamic table grid', 
   assert.deepStrictEqual(allKeys, ['_id', 'name', 'price', 'inStock']);
 });
 
-test('Database Studio: Connection String URI parser for Neon / Atlas / TiDB', () => {
+test('Database Studio: Connection String URI parser with special characters', () => {
   function parseDatabaseUri(uri) {
     const trimmed = uri.trim();
-    let type;
-    if (trimmed.startsWith('postgres://') || trimmed.startsWith('postgresql://')) type = 'postgres';
-    else if (trimmed.startsWith('mysql://')) type = 'mysql';
-    else if (trimmed.startsWith('mongodb://') || trimmed.startsWith('mongodb+srv://')) type = 'mongodb';
-    else if (trimmed.startsWith('redis://') || trimmed.startsWith('rediss://')) type = 'redis';
-    else if (trimmed.startsWith('sqlite://')) type = 'sqlite';
+    let type = 'postgres';
+    let cleanUri = trimmed;
 
-    const normalizedUri = trimmed.replace('mongodb+srv://', 'http://').replace('rediss://', 'http://').replace('postgresql://', 'http://').replace('postgres://', 'http://').replace('mysql://', 'http://').replace('redis://', 'http://');
-    const parsed = new URL(normalizedUri);
+    if (trimmed.startsWith('postgres://') || trimmed.startsWith('postgresql://')) {
+      type = 'postgres';
+      cleanUri = trimmed.replace(/^postgres(?:ql)?:\/\//i, '');
+    } else if (trimmed.startsWith('mysql://') || trimmed.startsWith('mariadb://')) {
+      type = 'mysql';
+      cleanUri = trimmed.replace(/^(?:mysql|mariadb):\/\//i, '');
+    } else if (trimmed.startsWith('mongodb://') || trimmed.startsWith('mongodb+srv://')) {
+      type = 'mongodb';
+      cleanUri = trimmed.replace(/^mongodb(?:\+srv)?:\/\//i, '');
+    }
 
-    const username = parsed.username ? decodeURIComponent(parsed.username) : undefined;
-    const password = parsed.password ? decodeURIComponent(parsed.password) : undefined;
-    const host = parsed.hostname || undefined;
-    const port = parsed.port || (type === 'postgres' ? '5432' : type === 'mysql' ? '3306' : type === 'mongodb' ? '27017' : '6379');
-    let database = parsed.pathname ? parsed.pathname.replace(/^\//, '') : undefined;
-    if (database && database.includes('?')) database = database.split('?')[0];
+    const lastAtIndex = cleanUri.lastIndexOf('@');
+    let username, password;
+    if (lastAtIndex !== -1) {
+      const authPart = cleanUri.substring(0, lastAtIndex);
+      const colonIndex = authPart.indexOf(':');
+      if (colonIndex !== -1) {
+        username = decodeURIComponent(authPart.substring(0, colonIndex));
+        password = decodeURIComponent(authPart.substring(colonIndex + 1));
+      } else {
+        username = decodeURIComponent(authPart);
+      }
+      cleanUri = cleanUri.substring(lastAtIndex + 1);
+    }
+
+    const slashIndex = cleanUri.indexOf('/');
+    const hostPortPart = slashIndex !== -1 ? cleanUri.substring(0, slashIndex) : cleanUri;
+    const pathAndQuery = slashIndex !== -1 ? cleanUri.substring(slashIndex + 1) : '';
+
+    const colonHostIndex = hostPortPart.indexOf(':');
+    let host = hostPortPart;
+    let port = type === 'postgres' ? '5432' : '3306';
+    if (colonHostIndex !== -1) {
+      host = hostPortPart.substring(0, colonHostIndex);
+      port = hostPortPart.substring(colonHostIndex + 1);
+    }
+
+    let database = pathAndQuery ? pathAndQuery.split('?')[0] : 'neondb';
 
     return { type, host, port, database, username, password };
   }
 
-  // 1. Neon Postgres
-  const neon = parseDatabaseUri('postgresql://alex:Secr3tP@ss@ep-cool-dawn.us-east-2.aws.neon.tech/neondb?sslmode=require');
+  // 1. Neon Postgres with complex password containing #, !, $
+  const neon = parseDatabaseUri('postgresql://alex:npg_Secr3t#pass!99$@ep-cool-dawn.us-east-2.aws.neon.tech/neondb?sslmode=require');
   assert.strictEqual(neon.type, 'postgres');
   assert.strictEqual(neon.host, 'ep-cool-dawn.us-east-2.aws.neon.tech');
   assert.strictEqual(neon.database, 'neondb');
   assert.strictEqual(neon.username, 'alex');
-  assert.strictEqual(neon.password, 'Secr3tP@ss');
+  assert.strictEqual(neon.password, 'npg_Secr3t#pass!99$');
 
   // 2. MongoDB Atlas
   const atlas = parseDatabaseUri('mongodb+srv://admin:atlas998@cluster0.abcde.mongodb.net/production?retryWrites=true');

@@ -45,11 +45,24 @@ function getPgConfig(config) {
     (config.host && !config.host.includes('localhost') && !config.host.includes('127.0.0.1'))
   );
 
+  // If host and user credentials are provided (either parsed or input), use explicit config for safe password escaping
+  if (config.host && config.username) {
+    return {
+      host: config.host,
+      port: parseInt(config.port, 10) || 5432,
+      database: config.database || 'postgres',
+      user: config.username,
+      password: config.password || '',
+      connectionTimeoutMillis: 8000,
+      ssl: isSslNeeded ? { rejectUnauthorized: false } : undefined
+    };
+  }
+
   if (config.connectionString) {
     return {
       connectionString: config.connectionString,
       ssl: isSslNeeded ? { rejectUnauthorized: false } : undefined,
-      connectionTimeoutMillis: 7000
+      connectionTimeoutMillis: 8000
     };
   }
 
@@ -59,7 +72,7 @@ function getPgConfig(config) {
     database: config.database || 'postgres',
     user: config.username || 'postgres',
     password: config.password || '',
-    connectionTimeoutMillis: 7000,
+    connectionTimeoutMillis: 8000,
     ssl: isSslNeeded ? { rejectUnauthorized: false } : undefined
   };
 }
