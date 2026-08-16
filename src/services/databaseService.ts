@@ -85,14 +85,29 @@ export const DatabaseService = {
 
     // 1. SELECT queries
     if (lower.startsWith('select') || lower.includes('select ')) {
+      // JOIN queries between users and accounts
+      if (lower.includes('join')) {
+        return {
+          success: true,
+          columns: ['user_id', 'user_name', 'email', 'account_id', 'balance_usd', 'status'],
+          rows: [
+            { user_id: 'u_101', user_name: 'Alex Rivera', email: 'alex.rivera@acme.dev', account_id: 'acc_881', balance_usd: '$2,450.00', status: 'ACTIVE' },
+            { user_id: 'u_103', user_name: 'Elena Rostova', email: 'elena.rostova@cloudscale.net', account_id: 'acc_882', balance_usd: '$890.00', status: 'ACTIVE' },
+            { user_id: 'u_105', user_name: 'Priya Sharma', email: 'priya.sharma@hyperloop.io', account_id: 'acc_883', balance_usd: '$142.00', status: 'ACTIVE' }
+          ],
+          rowCount: 3,
+          executionTimeMs: 18
+        };
+      }
+
       if (lower.includes('count')) {
         return {
           success: true,
-          columns: ['count', 'role'],
+          columns: ['role', 'user_count'],
           rows: [
-            { count: 1420, role: 'developer' },
-            { count: 480, role: 'admin' },
-            { count: 125, role: 'billing' }
+            { role: 'developer', user_count: 1420 },
+            { role: 'admin', user_count: 480 },
+            { role: 'billing', user_count: 125 }
           ],
           rowCount: 3,
           executionTimeMs: 12
@@ -106,6 +121,10 @@ export const DatabaseService = {
           { id: 'ws_02', name: 'Stripe Sandbox Vault', plan_tier: 'pro', storage_mb: 850, created_at: '2026-02-01' },
           { id: 'ws_04', name: 'Testing Sandbox', plan_tier: 'free', storage_mb: 120, created_at: '2026-02-20' }
         ];
+
+        if (lower.includes('order by') && lower.includes('desc')) {
+          rows.sort((a, b) => b.storage_mb - a.storage_mb);
+        }
 
         // Filter if query has enterprise filter
         if (lower.includes('enterprise')) {
