@@ -132,7 +132,15 @@ ipcMain.handle('db:test-connection', async (event, config) => {
 
     return { success: true, latencyMs: 5, message: `Driver ready` };
   } catch (err) {
-    return { success: false, message: err.message || 'Database connection failed' };
+    let friendlyMessage = err.message || 'Database connection failed';
+    if (err.code === 'ECONNREFUSED' || err.message?.includes('ECONNREFUSED')) {
+      friendlyMessage = `Could not connect to ${config.type?.toUpperCase() || 'Database'} on ${config.host || 'localhost'}:${config.port || 5432} (Connection Refused). No database server is running on this port. Start your local database service or use "⚡ Load Playground".`;
+    } else if (err.message?.includes('password authentication failed')) {
+      friendlyMessage = `Authentication failed: Incorrect username or password for user "${config.username || 'postgres'}".`;
+    } else if (err.code === 'ETIMEDOUT' || err.message?.includes('timeout')) {
+      friendlyMessage = `Connection timed out reaching ${config.host}:${config.port}. Verify server address, port, and firewall rules.`;
+    }
+    return { success: false, message: friendlyMessage };
   }
 });
 
@@ -248,9 +256,15 @@ ipcMain.handle('db:query', async (event, { config, sql }) => {
 
     return { success: false, message: `Unsupported driver: ${config.type}` };
   } catch (err) {
+    let friendlyMessage = err.message || 'Query execution error';
+    if (err.code === 'ECONNREFUSED' || err.message?.includes('ECONNREFUSED')) {
+      friendlyMessage = `Could not connect to ${config.type?.toUpperCase() || 'Database'} on ${config.host || 'localhost'}:${config.port || 5432} (Connection Refused). No database service is running on this port.`;
+    } else if (err.message?.includes('password authentication failed')) {
+      friendlyMessage = `Authentication failed: Incorrect username or password for user "${config.username || 'postgres'}".`;
+    }
     return {
       success: false,
-      message: err.message || 'Query execution error',
+      message: friendlyMessage,
       executionTimeMs: Date.now() - startTime
     };
   }
