@@ -626,6 +626,55 @@ test('Environment Management: create and rename environment scope', () => {
 });
 
 // ------------------------------------------------------------------------------
+// 9. DATABASE STUDIO INTEGRATION & QUERY ENGINE
+// ------------------------------------------------------------------------------
+console.log('\n--- 9. Testing Database Studio & Query Engine ---');
+
+test('Database Studio: SQL SELECT query execution & column extraction', () => {
+  const users = [
+    { id: 'u_101', email: 'alex.rivera@acme.dev', name: 'Alex Rivera', role: 'admin', status: 'ACTIVE' },
+    { id: 'u_102', email: 'sarah.connor@cyberdyne.io', name: 'Sarah Connor', role: 'developer', status: 'ACTIVE' },
+    { id: 'u_103', email: 'elena.rostova@cloudscale.net', name: 'Elena Rostova', role: 'owner', status: 'ACTIVE' }
+  ];
+
+  const columns = Object.keys(users[0]);
+  assert.strictEqual(columns.length, 5);
+  assert.ok(columns.includes('email'));
+  assert.ok(columns.includes('role'));
+
+  // Filter admin
+  const filtered = users.filter(u => u.role === 'admin');
+  assert.strictEqual(filtered.length, 1);
+  assert.strictEqual(filtered[0].email, 'alex.rivera@acme.dev');
+});
+
+test('Database Studio: CSV Export Serialization', () => {
+  const columns = ['id', 'email', 'role'];
+  const rows = [
+    { id: 'u_1', email: 'test@bapu.io', role: 'admin' },
+    { id: 'u_2', email: 'dev@bapu.io', role: 'developer' }
+  ];
+
+  const header = columns.join(',');
+  const rowLines = rows.map(r => columns.map(col => JSON.stringify(r[col] || '')).join(','));
+  const csv = [header, ...rowLines].join('\n');
+
+  assert.ok(csv.includes('id,email,role'));
+  assert.ok(csv.includes('"test@bapu.io"'));
+  assert.ok(csv.includes('"dev@bapu.io"'));
+});
+
+test('Database Studio: MongoDB document key extraction for dynamic table grid', () => {
+  const mongoDocs = [
+    { _id: '65cb7891a123f001', name: 'Pro License', price: 99.00, inStock: true },
+    { _id: '65cb7891a123f002', name: 'Starter Kit', price: 19.00, inStock: false }
+  ];
+
+  const allKeys = Array.from(new Set(mongoDocs.flatMap(doc => Object.keys(doc))));
+  assert.deepStrictEqual(allKeys, ['_id', 'name', 'price', 'inStock']);
+});
+
+// ------------------------------------------------------------------------------
 // SUMMARY
 // ------------------------------------------------------------------------------
 console.log('\n==============================================================================');

@@ -95,9 +95,32 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
     executionTimeMs: 14
   });
 
-  const handleExecuteSql = async () => {
+  // Auto-sync when active database changes
+  useEffect(() => {
+    const firstTable = activeDb.tables[0];
+    if (firstTable) {
+      setSelectedTable(firstTable);
+      const query = activeDb.type === 'mongodb' 
+        ? `${firstTable.name}.find({})` 
+        : `SELECT * FROM ${firstTable.name} LIMIT 15;`;
+      setSqlQuery(query);
+      DatabaseService.executeQuery(activeDb, query).then(res => {
+        if (res.success) {
+          setQueryResult({
+            columns: res.columns,
+            rows: res.rows,
+            rowCount: res.rowCount,
+            executionTimeMs: res.executionTimeMs
+          });
+        }
+      });
+    }
+  }, [activeDb.id]);
+
+  const handleExecuteSql = async (overrideQuery?: string) => {
+    const queryToRun = overrideQuery || sqlQuery;
     setIsExecuting(true);
-    const result = await DatabaseService.executeQuery(activeDb, sqlQuery);
+    const result = await DatabaseService.executeQuery(activeDb, queryToRun);
     setIsExecuting(false);
 
     if (result.success) {
@@ -107,14 +130,14 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
         rowCount: result.rowCount,
         executionTimeMs: result.executionTimeMs
       });
-      onRecordHistory(`SQL: ${sqlQuery.substring(0, 30)}...`, `${result.rowCount} rows • ${result.executionTimeMs}ms`);
+      onRecordHistory(`SQL: ${queryToRun.substring(0, 30)}...`, `${result.rowCount} rows • ${result.executionTimeMs}ms`);
     } else {
       setQueryResult(prev => ({
         ...prev,
         error: result.message,
         executionTimeMs: result.executionTimeMs
       }));
-      onRecordHistory(`SQL Error: ${sqlQuery.substring(0, 25)}`, result.message || 'Execution error');
+      onRecordHistory(`SQL Error: ${queryToRun.substring(0, 25)}`, result.message || 'Execution error');
     }
   };
 
@@ -171,7 +194,11 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
             <div
               onClick={() => {
                 setSelectedTable(table);
-                setSqlQuery(`SELECT * FROM ${table.name} LIMIT 25;`);
+                const query = activeDb.type === 'mongodb' 
+                  ? `${table.name}.find({})` 
+                  : `SELECT * FROM ${table.name} LIMIT 25;`;
+                setSqlQuery(query);
+                handleExecuteSql(query);
               }}
               style={{
                 display: 'flex',
@@ -226,11 +253,20 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
           <textarea
             value={sqlQuery}
             onChange={(e) => setSqlQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                handleExecuteSql();
+              } else if (e.key === 'F5') {
+                e.preventDefault();
+                handleExecuteSql();
+              }
+            }}
             className="code-textarea"
             spellCheck={false}
             placeholder={activeDb.type === 'mongodb' 
               ? 'Write MongoDB JSON query or MQL (e.g. { "status": "active" } or users.find({}))'
-              : 'Write SQL query here... (e.g. SELECT * FROM users;)'}
+              : 'Write SQL query here... (e.g. SELECT * FROM users;) • Press Ctrl+Enter to run'}
           />
 
           <div className="sql-actions-bar">
@@ -284,7 +320,7 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
               </button>
 
               <button 
-                onClick={handleExecuteSql}
+                onClick={() => handleExecuteSql()}
                 disabled={isExecuting}
                 className="btn-send"
                 style={{ padding: '6px 14px', fontSize: '12px' }}
