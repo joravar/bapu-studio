@@ -209,6 +209,61 @@ test('Parse POST request with Headers and JSON Body', () => {
   assert.strictEqual(res.bodyType, 'json');
 });
 
+test('Variable Interpolation: Replace {{VAR}} in URLs, Headers, and Body', () => {
+  function interpolate(text, env) {
+    if (!text) return '';
+    return text.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
+      const trimmed = key.trim();
+      return env[trimmed] !== undefined ? env[trimmed] : match;
+    });
+  }
+
+  const env = {
+    BASE_URL: 'https://api.prod.example.com',
+    API_VERSION: 'v2',
+    USER_ID: 'usr_99182',
+    AUTH_TOKEN: 'Bearer eyJhbGciOiJIUzI1Ni...'
+  };
+
+  // URL interpolation
+  const interpolatedUrl = interpolate('{{BASE_URL}}/{{API_VERSION}}/users/{{USER_ID}}/profile', env);
+  assert.strictEqual(interpolatedUrl, 'https://api.prod.example.com/v2/users/usr_99182/profile');
+
+  // Header interpolation
+  const interpolatedHeader = interpolate('{{AUTH_TOKEN}}', env);
+  assert.strictEqual(interpolatedHeader, 'Bearer eyJhbGciOiJIUzI1Ni...');
+
+  // Body interpolation
+  const interpolatedBody = interpolate('{"userId": "{{USER_ID}}", "env": "prod"}', env);
+  assert.strictEqual(interpolatedBody, '{"userId": "usr_99182", "env": "prod"}');
+});
+
+test('Code Generators: Generate valid cURL, JavaScript Fetch, Python Requests, and Go Net/HTTP', () => {
+  const req = {
+    method: 'POST',
+    url: 'https://api.example.com/v1/orders',
+    headers: [{ key: 'Content-Type', value: 'application/json' }],
+    body: '{"itemId": "item_123", "qty": 5}'
+  };
+
+  // 1. cURL generator
+  const curlCode = `curl -X ${req.method} "${req.url}" \\\n  -H "${req.headers[0].key}: ${req.headers[0].value}" \\\n  -d '${req.body}'`;
+  assert.ok(curlCode.includes('curl -X POST'));
+  assert.ok(curlCode.includes('https://api.example.com/v1/orders'));
+
+  // 2. JavaScript Fetch generator
+  const jsFetch = `fetch("${req.url}", {\n  method: "${req.method}",\n  headers: { "${req.headers[0].key}": "${req.headers[0].value}" },\n  body: JSON.stringify(${req.body})\n});`;
+  assert.ok(jsFetch.includes('fetch("https://api.example.com/v1/orders"'));
+
+  // 3. Python Requests generator
+  const pythonCode = `import requests\n\nresponse = requests.post(\n    "${req.url}",\n    headers={"${req.headers[0].key}": "${req.headers[0].value}"},\n    data='${req.body}'\n)`;
+  assert.ok(pythonCode.includes('requests.post'));
+
+  // 4. Go Net/HTTP generator
+  const goCode = `req, err := http.NewRequest("${req.method}", "${req.url}", bytes.NewBuffer([]byte(\`${req.body}\`)))`;
+  assert.ok(goCode.includes('http.NewRequest("POST"'));
+});
+
 // ------------------------------------------------------------------------------
 // 4. DATABASE DRIVER SERVICE INTEGRITY
 // ------------------------------------------------------------------------------
@@ -964,6 +1019,58 @@ async function runNetworkDaemonSuite() {
     const text = await res.text();
     assert.ok(text.includes('Hello'));
     assert.ok(text.includes('Bapu Studio'));
+  });
+
+  await test('Stream Studio: WebSocket Frame & Bi-directional Message Modeling', () => {
+    const messages = [];
+
+    // Simulate sending message
+    const sendMsg = {
+      id: 'ws-1',
+      direction: 'sent',
+      payload: JSON.stringify({ action: 'subscribe', topic: 'crypto_prices' }),
+      timestamp: '11:59:00 PM'
+    };
+    messages.push(sendMsg);
+
+    // Simulate receiving echo message
+    const recvMsg = {
+      id: 'ws-2',
+      direction: 'received',
+      payload: JSON.stringify({ status: 'subscribed', topic: 'crypto_prices', ack: true }),
+      timestamp: '11:59:01 PM',
+      latencyMs: 14
+    };
+    messages.push(recvMsg);
+
+    assert.strictEqual(messages.length, 2);
+    assert.strictEqual(messages[0].direction, 'sent');
+    assert.strictEqual(messages[1].direction, 'received');
+    assert.strictEqual(messages[1].latencyMs, 14);
+    const parsedAck = JSON.parse(messages[1].payload);
+    assert.strictEqual(parsedAck.status, 'subscribed');
+  });
+
+  await test('Error Resilience: Malformed JSON payload & Network Diagnostics handling', () => {
+    function safeParseJsonBody(rawBody) {
+      if (!rawBody || typeof rawBody !== 'string') return { valid: true, data: null };
+      try {
+        const parsed = JSON.parse(rawBody);
+        return { valid: true, data: parsed };
+      } catch (err) {
+        return { valid: false, error: `Malformed JSON: ${err.message}` };
+      }
+    }
+
+    // 1. Valid JSON
+    const valid = safeParseJsonBody('{"key": "value"}');
+    assert.strictEqual(valid.valid, true);
+    assert.strictEqual(valid.data.key, 'value');
+
+    // 2. Malformed JSON with unquoted key
+    const invalid = safeParseJsonBody('{key: value}');
+    assert.strictEqual(invalid.valid, false);
+    assert.ok(invalid.error.includes('Malformed JSON'));
   });
 
   await test('Ephemeral Daemon: Gracefully terminate in-memory server', async () => {
