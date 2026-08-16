@@ -60,6 +60,14 @@
       ],
       "category": "public.app-category.developer-tools"
     },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "tar.gz"
+      ],
+      "category": "Development"
+    },
     "publish": {
       "provider": "github",
       "releaseType": "release"
