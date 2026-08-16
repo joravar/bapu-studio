@@ -66,11 +66,13 @@
         "deb",
         "tar.gz"
       ],
-      "category": "Development"
+      "category": "Development",
+      "maintainer": "Joravar <support@bapustudio.dev>"
     },
     "publish": {
       "provider": "github",
       "releaseType": "release"
     }
-  }
+  },
+  "author": "Joravar <support@bapustudio.dev>"
 }
