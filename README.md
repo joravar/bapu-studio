@@ -126,7 +126,7 @@ Bapu Studio is an open-core, community-driven developer tool. You can sponsor th
 | Tier | Monthly | Perks |
 | :--- | :---: | :--- |
 | **☕ Backer** | **$5/mo** | Listed on the README sponsors wall & Discord Supporter badge |
-| **🚀 Pro Sponsor** | **$12/mo** | Instant **Bapu Pro License Key** (Multi-device sync & early access to AI Copilot model integrations) |
+| **🚀 Pro Sponsor** | **$12/mo** | Pro Supporter badge, early access preview of upcoming Bapu Pro features (cloud sync relay & AI model integrations), & direct roadmap input |
 | **🏢 Corporate Silver** | **$100/mo** | Company logo + do-follow link on GitHub README & docs website |
 | **👑 Corporate Gold** | **$500/mo** | Top-tier banner logo on README, priority bug fixes & feature requests |
 
