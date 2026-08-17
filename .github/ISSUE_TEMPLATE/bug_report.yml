@@ -1,0 +1,83 @@
+name: 🐛 Bug Report
+description: Create a report to help us reproduce and fix a bug in Bapu Studio.
+title: "[BUG]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug! Please fill out the sections below so we can reproduce and fix the issue.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      description: Which area of Bapu Studio is experiencing the issue?
+      options:
+        - "🚀 API Studio (HTTP / GraphQL / Latency)"
+        - "🗄️ Database Studio (Postgres / MySQL / Mongo / SQLite)"
+        - "🔐 Secrets Matrix (.env variables)"
+        - "✨ AI Copilot"
+        - "🖥️ Desktop App / Window / Core Runtime"
+        - "Other / General"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: Clear and concise description of what the bug is.
+      placeholder: "When opening a SQLite file with special characters in the filename, the table grid crashes..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Step-by-step instructions to reproduce the behavior.
+      placeholder: |
+        1. Go to Database Studio
+        2. Click on 'Connect Database'
+        3. Enter connection string 'postgres://...'
+        4. Click 'Test Connection'
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: Expected vs. Actual Behavior
+      description: What did you expect to happen vs. what actually happened?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      description: Which OS are you running Bapu Studio on?
+      options:
+        - "Windows 11 / 10 (.exe)"
+        - "macOS Apple Silicon (.dmg / .app)"
+        - "macOS Intel (.dmg / .app)"
+        - "Linux (AppImage / .deb / .tar.gz)"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Bapu Studio Version
+      description: Version of Bapu Studio (check titlebar or package release).
+      placeholder: "v1.0.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console Logs / Error Output
+      description: Paste Developer Tools console logs (Ctrl+Shift+I or Cmd+Option+I) or error stack traces here.
+      render: shell

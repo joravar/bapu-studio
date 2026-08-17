@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🛡️ Security Vulnerability Reporting
+    url: https://github.com/joravar/bapu-studio/security/policy
+    about: Please report security vulnerabilities privately via our Security Policy or by emailing support@bapustudio.dev.
+  - name: 💬 Community Q&A & Discussions
+    url: https://github.com/joravar/bapu-studio/discussions
+    about: Ask questions, showcase workflows, and discuss ideas with the Bapu Studio community.

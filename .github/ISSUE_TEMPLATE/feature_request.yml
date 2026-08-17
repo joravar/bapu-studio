@@ -1,0 +1,46 @@
+name: ✨ Feature Request
+description: Suggest a new feature or improvement for Bapu Studio.
+title: "[FEAT]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting a feature! Bapu Studio is driven by developer feedback.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Target Feature Area
+      description: Which part of Bapu Studio would this feature enhance?
+      options:
+        - "🚀 API Studio (HTTP / GraphQL / Headers / Imports)"
+        - "🗄️ Database Studio (New DB Driver / Query Editor / Schema Explorer)"
+        - "🔐 Secrets Matrix (.env Interpolation / Vault)"
+        - "✨ AI Copilot (SQL / JSON Generation / Model BYOK)"
+        - "⚙️ Settings / Customization / UX"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Is your feature request related to a problem?
+      description: A clear description of what the problem or workflow pain-point is.
+      placeholder: "I'm frustrated when I have to manually re-enter basic auth headers for 10 API requests..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution or user experience you would like to see.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or features you've considered.
