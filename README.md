@@ -10,7 +10,7 @@
 
 **The honest, lightweight, local-first developer cockpit combining an API Client, Database Studio, and Secrets Matrix into one seamless desktop application.**
 
-[📦 Downloads](#-downloads) • [🌐 Live Website](https://joravar.github.io/bapu-studio/) • [🏗️ Architecture](#️-architecture--technology-stack) • [💖 Sponsor](#-support--github-sponsors) • [📄 License](#-license)
+[📦 Downloads](#-downloads) • [🌐 Live Website](https://joravar.github.io/bapu-studio/) • [🏗️ Architecture](#️-architecture--technology-stack) • [🤖 AI Copilot](#-ai-copilot--current-status) • [💖 Sponsor](#-support--github-sponsors) • [📄 License](#-license)
 
 </div>
 
@@ -18,7 +18,7 @@
 
 ## 🌟 Why Bapu Studio?
 
-Developers are tired of running 4 heavy apps consuming 2GB of RAM just to test an endpoint, run a database query, and check a `.env` secret. 
+Developers are tired of running several heavy apps just to test an endpoint, run a database query, and check a `.env` secret.
 
 **Bapu Studio** stands for **simplicity, truth, zero bloat, and complete local privacy**.
 
@@ -48,15 +48,17 @@ Direct native installer packages are available on [GitHub Releases](https://gith
 
 ## 📊 Feature Comparison
 
-| Feature | Postman | TablePlus / DBeaver | **Bapu Studio (OSS)** |
-| :--- | :---: | :---: | :---: |
-| **Download Size** | ~180 MB | ~120 MB | **< 25 MB** |
-| **Idle RAM Consumption** | 600–900 MB | 400–800 MB | **< 45 MB** |
-| **100% Offline-First** | ❌ (Forced Cloud) | ✅ | **✅ (100% Local Storage)** |
-| **Unified DB + API + Secrets** | ❌ | ❌ | **✅ All-in-One** |
-| **Pre-Bundled Drivers** | ❌ None | ⚠️ Some | **✅ Postgres, MySQL, Mongo, SQLite** |
-| **Telemetry / Data Privacy** | Cloud Logs | Closed Source | **100% Zero Telemetry** |
-| **License** | Proprietary ($$$) | Proprietary | **Open Source (AGPLv3)** |
+| Feature | Postman | TablePlus | DBeaver CE | **Bapu Studio (OSS)** |
+| :--- | :---: | :---: | :---: | :---: |
+| **Runtime** | Electron + Chromium | Native | JVM (bundled Java) | Electron (no JVM) |
+| **Idle RAM** | Widely reported in the hundreds of MB, climbing over long sessions[^1] | Generally light — native app | Can run heavy due to JVM overhead | Lean by design — no JVM, minimal UI framework |
+| **100% Offline-First** | ❌ (Forced Cloud) | ✅ | ✅ | **✅ (100% Local Storage)** |
+| **Unified DB + API + Secrets** | ❌ | ❌ | ❌ | **✅ All-in-One** |
+| **Pre-Bundled Drivers** | ❌ None | ⚠️ Some | ✅ Most (JDBC) | **✅ Postgres, MySQL, Mongo, SQLite** |
+| **Telemetry / Data Privacy** | Cloud sync by default | Closed source, local | Open source, local | **100% Zero Telemetry** |
+| **License** | Proprietary ($$$) | Proprietary | Open Source (Apache 2.0) | **Open Source (AGPLv3)** |
+
+[^1]: Based on publicly reported user issues, not a controlled benchmark. We haven't published exact installer size or RAM numbers for Bapu Studio yet — figures vary by OS and version, and we'd rather not quote a number we haven't measured. Check the [Releases page](https://github.com/joravar/bapu-studio/releases) for actual installer sizes.
 
 ---
 
@@ -89,6 +91,16 @@ npm run desktop
 
 ---
 
+## 🤖 AI Copilot — Current Status
+
+The AI Copilot panel (available in both API Studio and Database Studio) ships today as a **local, fully offline heuristic engine**. It pattern-matches your prompt against a small set of built-in SQL and JSON templates and returns a result instantly — no network call is made, which is why it's genuinely zero-telemetry: there's nothing to transmit yet.
+
+The provider selector (Local Ollama / OpenAI BYOK / Anthropic BYOK) and API key field are present in the UI ahead of real model-backed generation, which is still on the roadmap. Selecting a provider or entering a key does not currently change the output — treat the Copilot as a smart snippet generator for now, not a live LLM integration.
+
+We'd rather say this plainly here than have it be a surprise. If you want to help wire up real Ollama/OpenAI/Anthropic calls, contributions are welcome.
+
+---
+
 ## 💼 Commercial Open Source Model (COSS)
  
 * **Community Edition (AGPLv3):** 100% free for individual developers, local offline use, and open-source projects.
@@ -102,7 +114,7 @@ npm run desktop
 * **100% Clean-Room Independent Implementation:** All code, architecture, and UI designs in this repository are independent, original clean-room works authored specifically for Bapu Studio and distributed under the **GNU Affero General Public License v3.0 (AGPLv3)**.
 * **No Warranty ("AS IS"):** In accordance with Sections 15 and 16 of the GNU AGPLv3 license, this software is provided on an *"AS IS"* and *"AS AVAILABLE"* basis without warranties of any kind, either express or implied, including but not limited to fitness for a particular purpose, merchantability, or non-infringement.
 * **Database & Query Execution Responsibility:** Users are solely responsible for reviewing and verifying all SQL/NoSQL queries, migrations, and database operations before executing them against production or critical database servers. The authors of Bapu Studio accept no liability for data loss or service disruption.
-* **AI Copilot Output:** Queries, regexes, and payloads generated by the AI Copilot are automated suggestions. Users must inspect and validate all generated queries before execution.
+* **AI Copilot Output:** The AI Copilot currently runs as a local template/heuristic engine (see [AI Copilot — Current Status](#-ai-copilot--current-status)), not a live model integration. Its output is a starting-point suggestion only — users must inspect and validate all generated queries and payloads before execution.
 * **Privacy & Local Storage:** Bapu Studio Community Edition operates 100% locally. Connection strings, API secrets, and queries are stored on the user's local machine and are never transmitted to any third-party telemetry server.
 
 ---
@@ -114,7 +126,7 @@ Bapu Studio is an open-core, community-driven developer tool. You can sponsor th
 | Tier | Monthly | Perks |
 | :--- | :---: | :--- |
 | **☕ Backer** | **$5/mo** | Listed on the README sponsors wall & Discord Supporter badge |
-| **🚀 Pro Sponsor** | **$12/mo** | Instant **Bapu Pro License Key** (Multi-device sync & AI features) |
+| **🚀 Pro Sponsor** | **$12/mo** | Instant **Bapu Pro License Key** (Multi-device sync & early access to AI Copilot model integrations) |
 | **🏢 Corporate Silver** | **$100/mo** | Company logo + do-follow link on GitHub README & docs website |
 | **👑 Corporate Gold** | **$500/mo** | Top-tier banner logo on README, priority bug fixes & feature requests |
 
@@ -124,4 +136,3 @@ Bapu Studio is an open-core, community-driven developer tool. You can sponsor th
 
 ## 📄 License
 This project is licensed under the **GNU Affero General Public License v3.0 (AGPLv3)**. Commercial team licenses are available.
-

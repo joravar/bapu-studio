@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bapu Studio — The Honest Open-Source Developer Cockpit</title>
-  <meta name="description" content="Replace bloated developer tools. Bapu Studio combines API Client, SQL/NoSQL Database Studio, Secrets Matrix, and Privacy-First AI Copilot in <25MB.">
-  
+  <meta name="description" content="Replace bloated developer tools. Bapu Studio combines an API Client, SQL/NoSQL Database Studio, Secrets Matrix, and a local AI Copilot in one lightweight, offline-first desktop app.">
+
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -483,7 +483,7 @@
       </div>
       <h1>The Honest Developer Cockpit for APIs, Databases, and Secrets.</h1>
       <p>
-        Replace bloated, heavy tools. Bapu Studio unites your HTTP requests, PostgreSQL, MySQL, MongoDB, SQLite files, and local <code>.env</code> variables in a fast, <25MB local-first client.
+        Replace bloated, heavy tools. Bapu Studio unites your HTTP requests, PostgreSQL, MySQL, MongoDB, SQLite files, and local <code>.env</code> variables in one fast, lightweight, local-first client.
       </p>
 
       <div class="hero-actions">
@@ -603,6 +603,13 @@
           <h3>Local-First Secrets Matrix</h3>
           <p>Scoped environment variables with secret masking and instant <code>{{VARIABLE}}</code> URL interpolation. Export straight to standard <code>.env</code> files.</p>
         </div>
+
+        <!-- 5. AI Copilot -->
+        <div class="feature-card">
+          <div class="feature-icon" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">✨</div>
+          <h3>AI Copilot (Local Heuristic Engine)</h3>
+          <p>Instantly generates starter SQL and JSON payloads from a plain-English prompt using a fully offline template engine — no network call, nothing to leak. Real Ollama / OpenAI / Anthropic (BYOK) model integration is on the roadmap; the provider picker in the app is a preview of what's coming, not live yet.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -635,11 +642,11 @@
               <td class="cross-red">✗ DB only</td>
             </tr>
             <tr>
-              <td><strong>Installer Download Size</strong></td>
-              <td class="check-green"><strong>&lt; 25 MB</strong></td>
-              <td class="cross-red">~180 MB</td>
-              <td class="cross-red">~95 MB</td>
-              <td class="cross-red">~120 MB</td>
+              <td><strong>Runtime Footprint</strong></td>
+              <td class="check-green"><strong>Lean Electron build, no JVM</strong></td>
+              <td class="cross-red">Electron + Chromium — widely reported RAM-heavy at idle</td>
+              <td class="check-green">Native — generally light</td>
+              <td class="cross-red">Bundles a JVM — often heavier</td>
             </tr>
             <tr>
               <td><strong>Pre-Bundled Drivers</strong></td>
@@ -660,11 +667,14 @@
               <td class="check-green">✓ AGPLv3 Open</td>
               <td class="cross-red">✗ Closed Source</td>
               <td class="cross-red">✗ Proprietary</td>
-              <td>GPLv2</td>
+              <td class="check-green">✓ Apache 2.0</td>
             </tr>
           </tbody>
         </table>
       </div>
+      <p style="max-width: 960px; margin: 16px auto 0; font-size: 12px; color: var(--text-dim); text-align: center; line-height: 1.6;">
+        Runtime footprint is based on each tool's known architecture (Electron vs. JVM vs. native), not a controlled benchmark. We haven't published exact installer size or RAM numbers for Bapu Studio yet — see the <a href="https://github.com/joravar/bapu-studio/releases" target="_blank" style="color: var(--text-muted);">Releases page</a> for actual download sizes.
+      </p>
     </div>
   </section>
 
