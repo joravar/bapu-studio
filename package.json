@@ -54,6 +54,12 @@
         "zip"
       ]
     },
+    "nsis": {
+      "artifactName": "Bapu-Studio-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Bapu-Studio-Portable-${version}.${ext}"
+    },
     "mac": {
       "target": [
         "dmg",
