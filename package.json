@@ -77,8 +77,10 @@
     },
     "publish": {
       "provider": "github",
-      "releaseType": "release"
-    }
+      "releaseType": "release",
+      "overwrite": true
+    },
+    "artifactName": "Bapu-Studio-${version}-${os}-${arch}.${ext}"
   },
   "author": "Joravar <support@bapustudio.dev>"
 }
