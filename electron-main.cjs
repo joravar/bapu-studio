@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const pg = require('pg');
 const mysql = require('mysql2/promise');
@@ -24,6 +24,24 @@ function createWindow() {
       webSecurity: true,
       preload: path.join(__dirname, 'preload.cjs'),
     },
+  });
+
+  // Handle external links (e.g. GitHub Sponsor, Docs) to open in system default browser
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https:') || url.startsWith('http:')) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
+
+  win.webContents.on('will-navigate', (event, url) => {
+    if (url.startsWith('http:') || url.startsWith('https:')) {
+      const isDevServer = !app.isPackaged && url.includes('localhost:3000');
+      if (!isDevServer) {
+        event.preventDefault();
+        shell.openExternal(url);
+      }
+    }
   });
 
   if (app.isPackaged) {
@@ -419,6 +437,15 @@ ipcMain.handle('db:get-schema', async (event, config) => {
   } catch (err) {
     return { success: false, message: err.message, tables: [] };
   }
+});
+
+// Open external URLs in default system browser
+ipcMain.handle('app:open-external', async (event, url) => {
+  if (typeof url === 'string' && (url.startsWith('https:') || url.startsWith('http:'))) {
+    await shell.openExternal(url);
+    return { success: true };
+  }
+  return { success: false, message: 'Invalid URL scheme' };
 });
 
 // App Lifecycle

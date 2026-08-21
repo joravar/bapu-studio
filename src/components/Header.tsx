@@ -96,6 +96,12 @@ export const Header: React.FC<HeaderProps> = ({
           href="https://github.com/sponsors/joravar"
           target="_blank"
           rel="noopener noreferrer"
+          onClick={(e) => {
+            if (typeof window !== 'undefined' && (window as any).bapuBridge?.openExternal) {
+              e.preventDefault();
+              (window as any).bapuBridge.openExternal('https://github.com/sponsors/joravar');
+            }
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
