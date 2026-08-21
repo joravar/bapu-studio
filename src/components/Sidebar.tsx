@@ -23,6 +23,8 @@ import {
   Check
 } from 'lucide-react';
 import { Collection, ApiRequest, DatabaseConnection, HistoryItem, Environment, KeyValuePair } from '../types';
+
+declare const __APP_VERSION__: string;
 import { NewCollectionModal } from './ApiStudio/NewCollectionModal';
 import { NewConnectionModal } from './DatabaseStudio/NewConnectionModal';
 import { ImportExportModal } from './ApiStudio/ImportExportModal';
@@ -963,7 +965,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         justifyContent: 'space-between'
       }}>
         <span>RAM: <strong>28.4 MB</strong></span>
-        <span>v1.0.0-oss</span>
+        <span>v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.1'}-oss</span>
       </div>
 
       {/* New Environment Modal */}
