@@ -19,6 +19,7 @@ import { CodeSnippetModal } from './CodeSnippetModal';
 import { CurlImportModal } from './CurlImportModal';
 import { AiCopilotModal } from '../AiCopilot/AiCopilotModal';
 import { executePreRequestScript, executeTestScript } from '../../utils/scriptEngine';
+import { generateAssertionsFromResponse } from '../../utils/assertionGenerator';
 
 interface ApiStudioProps {
   activeRequest: ApiRequest;
@@ -880,51 +881,78 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
             {/* Post-Response Script & Test Editor */}
             {activeSubTab === 'tests' && (
               <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', background: 'rgba(16, 185, 129, 0.05)', borderBottom: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)', marginRight: '6px' }}>Snippets:</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(16, 185, 129, 0.05)', borderBottom: '1px solid var(--border-subtle)', flexWrap: 'wrap', gap: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-dim)', marginRight: '6px' }}>Snippets:</span>
+                    <button 
+                      onClick={() => {
+                        const cur = activeRequest.testScript || activeRequest.tests || '';
+                        const snippet = `bapu.test("Status code is 200", function () {\n  bapu.expect(bapu.response.status).toBe(200);\n});\n\n`;
+                        onUpdateRequest({ ...activeRequest, testScript: cur + snippet, tests: cur + snippet });
+                      }}
+                      className="btn-secondary"
+                      style={{ fontSize: '10px', padding: '2px 6px' }}
+                    >
+                      + Status: 200
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const cur = activeRequest.testScript || activeRequest.tests || '';
+                        const snippet = `bapu.test("Response time is fast (< 500ms)", function () {\n  bapu.expect(bapu.response.timeMs).toBeLessThan(500);\n});\n\n`;
+                        onUpdateRequest({ ...activeRequest, testScript: cur + snippet, tests: cur + snippet });
+                      }}
+                      className="btn-secondary"
+                      style={{ fontSize: '10px', padding: '2px 6px' }}
+                    >
+                      + Latency &lt; 500ms
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const cur = activeRequest.testScript || activeRequest.tests || '';
+                        const snippet = `bapu.test("Status is success", function () {\n  var data = bapu.response.json();\n  bapu.expect(data.status).toEqual("success");\n});\n\n`;
+                        onUpdateRequest({ ...activeRequest, testScript: cur + snippet, tests: cur + snippet });
+                      }}
+                      className="btn-secondary"
+                      style={{ fontSize: '10px', padding: '2px 6px' }}
+                    >
+                      + JSON Value Check
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const cur = activeRequest.testScript || activeRequest.tests || '';
+                        const snippet = `var data = bapu.response.json();\nif (data && data.token) {\n  bapu.env.set("AUTH_TOKEN", data.token);\n  console.log("Saved AUTH_TOKEN into environment variables");\n}\n\n`;
+                        onUpdateRequest({ ...activeRequest, testScript: cur + snippet, tests: cur + snippet });
+                      }}
+                      className="btn-secondary"
+                      style={{ fontSize: '10px', padding: '2px 6px' }}
+                    >
+                      + Extract Token to Env
+                    </button>
+                  </div>
+
                   <button 
                     onClick={() => {
+                      if (!response) {
+                        alert('Please send the request first to auto-generate assertions from the live response.');
+                        return;
+                      }
+                      const generated = generateAssertionsFromResponse(response);
                       const cur = activeRequest.testScript || activeRequest.tests || '';
-                      const snippet = `bapu.test("Status code is 200", function () {\n  bapu.expect(bapu.response.status).toBe(200);\n});\n\n`;
-                      onUpdateRequest({ ...activeRequest, testScript: cur + snippet, tests: cur + snippet });
+                      const next = cur ? `${cur}\n\n${generated}` : generated;
+                      onUpdateRequest({ ...activeRequest, testScript: next, tests: next });
                     }}
                     className="btn-secondary"
-                    style={{ fontSize: '10px', padding: '2px 6px' }}
-                  >
-                    + Status: 200
-                  </button>
-                  <button 
-                    onClick={() => {
-                      const cur = activeRequest.testScript || activeRequest.tests || '';
-                      const snippet = `bapu.test("Response time is fast (< 500ms)", function () {\n  bapu.expect(bapu.response.timeMs).toBeLessThan(500);\n});\n\n`;
-                      onUpdateRequest({ ...activeRequest, testScript: cur + snippet, tests: cur + snippet });
+                    style={{ 
+                      fontSize: '11px', 
+                      padding: '3px 10px', 
+                      background: response ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                      color: response ? '#34d399' : 'var(--text-dim)',
+                      borderColor: response ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-subtle)',
+                      fontWeight: 600
                     }}
-                    className="btn-secondary"
-                    style={{ fontSize: '10px', padding: '2px 6px' }}
+                    title={response ? "Auto-generate full test assertions based on the live response" : "Send request first to enable"}
                   >
-                    + Latency &lt; 500ms
-                  </button>
-                  <button 
-                    onClick={() => {
-                      const cur = activeRequest.testScript || activeRequest.tests || '';
-                      const snippet = `bapu.test("Status is success", function () {\n  var data = bapu.response.json();\n  bapu.expect(data.status).toEqual("success");\n});\n\n`;
-                      onUpdateRequest({ ...activeRequest, testScript: cur + snippet, tests: cur + snippet });
-                    }}
-                    className="btn-secondary"
-                    style={{ fontSize: '10px', padding: '2px 6px' }}
-                  >
-                    + JSON Value Check
-                  </button>
-                  <button 
-                    onClick={() => {
-                      const cur = activeRequest.testScript || activeRequest.tests || '';
-                      const snippet = `var data = bapu.response.json();\nif (data && data.token) {\n  bapu.env.set("AUTH_TOKEN", data.token);\n  console.log("Saved AUTH_TOKEN into environment variables");\n}\n\n`;
-                      onUpdateRequest({ ...activeRequest, testScript: cur + snippet, tests: cur + snippet });
-                    }}
-                    className="btn-secondary"
-                    style={{ fontSize: '10px', padding: '2px 6px' }}
-                  >
-                    + Extract Token to Env
+                    ✨ Auto-Generate from Response
                   </button>
                 </div>
                 <textarea

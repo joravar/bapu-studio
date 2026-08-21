@@ -326,6 +326,71 @@ test('GraphQL Engine: Prettify and format GraphQL query syntax', () => {
   assert.strictEqual(formatted, expected);
 });
 
+test('Smart Intelligence: Generate comprehensive assertions from API response AST', () => {
+  function generateAssertions(res) {
+    const lines = [];
+    lines.push(`bapu.test("Status code is ${res.status}", () => { bapu.expect(bapu.response.status).toBe(${res.status}); });`);
+    if (res.data && Array.isArray(res.data)) {
+      lines.push('bapu.test("Response payload is a non-empty array", () => { bapu.expect(Array.isArray(data)).toBe(true); });');
+    } else if (res.data && typeof res.data === 'object') {
+      Object.keys(res.data).forEach(k => {
+        lines.push(`bapu.test("Response contains ${k}", () => { bapu.expect(typeof data["${k}"]).toBe("${typeof res.data[k]}"); });`);
+      });
+    }
+    return lines.join('\n');
+  }
+
+  // 1. Test Object Response
+  const mockObjRes = {
+    status: 200,
+    timeMs: 45,
+    headers: { 'content-type': 'application/json' },
+    data: { id: 101, username: 'emilys', email: 'emily@example.com', active: true }
+  };
+  const objAssertions = generateAssertions(mockObjRes);
+  assert.ok(objAssertions.includes('Status code is 200'));
+  assert.ok(objAssertions.includes('typeof data["username"]'));
+  assert.ok(objAssertions.includes('typeof data["email"]'));
+
+  // 2. Test Array Response
+  const mockArrayRes = {
+    status: 200,
+    timeMs: 30,
+    headers: { 'content-type': 'application/json' },
+    data: [{ id: 1 }, { id: 2 }]
+  };
+  const arrayAssertions = generateAssertions(mockArrayRes);
+  assert.ok(arrayAssertions.includes('Response payload is a non-empty array'));
+});
+
+test('Smart Intelligence: Generate schema-aware SQL presets for recent, grouping, and null checks', () => {
+  const table = {
+    name: 'users',
+    columns: [
+      { name: 'id', type: 'INT', isPrimaryKey: true },
+      { name: 'email', type: 'VARCHAR(255)', isPrimaryKey: false },
+      { name: 'role', type: 'VARCHAR(50)', isPrimaryKey: false },
+      { name: 'created_at', type: 'TIMESTAMPTZ', isPrimaryKey: false }
+    ]
+  };
+
+  const dateCol = table.columns.find(c => /date|time|created|updated/i.test(c.name))?.name;
+  const catCol = table.columns.find(c => /role|status|type/i.test(c.name))?.name;
+  const nullCol = table.columns.find(c => !c.isPrimaryKey)?.name;
+
+  assert.strictEqual(dateCol, 'created_at');
+  assert.strictEqual(catCol, 'role');
+  assert.strictEqual(nullCol, 'email');
+
+  const recentSql = `SELECT * FROM ${table.name} ORDER BY ${dateCol} DESC LIMIT 25;`;
+  const groupSql = `SELECT ${catCol}, COUNT(*) as total FROM ${table.name} GROUP BY ${catCol} ORDER BY total DESC;`;
+  const nullSql = `SELECT * FROM ${table.name} WHERE ${nullCol} IS NULL;`;
+
+  assert.strictEqual(recentSql, 'SELECT * FROM users ORDER BY created_at DESC LIMIT 25;');
+  assert.strictEqual(groupSql, 'SELECT role, COUNT(*) as total FROM users GROUP BY role ORDER BY total DESC;');
+  assert.strictEqual(nullSql, 'SELECT * FROM users WHERE email IS NULL;');
+});
+
 // ------------------------------------------------------------------------------
 // 4. DATABASE DRIVER SERVICE INTEGRITY
 // ------------------------------------------------------------------------------

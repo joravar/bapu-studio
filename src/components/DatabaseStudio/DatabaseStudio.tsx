@@ -17,6 +17,7 @@ import { SqliteDropZone } from './SqliteDropZone';
 import { AiCopilotModal } from '../AiCopilot/AiCopilotModal';
 import { NewConnectionModal } from './NewConnectionModal';
 import { DatabaseService } from '../../services/databaseService';
+import { SAMPLE_PLAYGROUND_DB } from '../../data/mockData';
 
 interface DatabaseStudioProps {
   activeDb: DatabaseConnection;
@@ -205,8 +206,19 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
 
         <div className="sidebar-section-header">Tables ({activeDb.tables.length})</div>
         {activeDb.tables.length === 0 ? (
-          <div style={{ fontSize: '11px', color: 'var(--text-dim)', padding: '12px 8px', lineHeight: 1.4, textAlign: 'center' }}>
-            {activeDb.id === 'db-empty' ? 'No database configured.' : 'No tables discovered.'}
+          <div style={{ fontSize: '11px', color: 'var(--text-dim)', padding: '16px 8px', lineHeight: 1.4, textAlign: 'center' }}>
+            <p style={{ marginBottom: '10px' }}>
+              {activeDb.id === 'db-empty' ? 'No database connection selected.' : 'No tables discovered.'}
+            </p>
+            {onDatabaseLoaded && (
+              <button
+                onClick={() => onDatabaseLoaded(SAMPLE_PLAYGROUND_DB)}
+                className="btn-secondary"
+                style={{ fontSize: '11px', padding: '6px 10px', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)', width: '100%' }}
+              >
+                ⚡ Load Sample Playground DB
+              </button>
+            )}
           </div>
         ) : (
           activeDb.tables.map(table => (
@@ -290,39 +302,94 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
               : 'Write SQL query here... (e.g. SELECT * FROM table;) • Press Ctrl+Enter to run'}
           />
 
-          <div className="sql-actions-bar">
-            <div style={{ display: 'flex', gap: '6px' }}>
+          <div className="sql-actions-bar" style={{ flexWrap: 'wrap', gap: '6px' }}>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
               {selectedTable && (
                 activeDb.type === 'mongodb' ? (
-                  <button 
-                    onClick={() => setSqlQuery(`${selectedTable.name}.find({})`)}
-                    className="btn-secondary"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
-                  >
-                    Find All ({selectedTable.name})
-                  </button>
+                  <>
+                    <button 
+                      onClick={() => {
+                        const q = `${selectedTable.name}.find({})`;
+                        setSqlQuery(q);
+                        handleExecuteSql(q);
+                      }}
+                      className="btn-secondary"
+                      style={{ fontSize: '11px', padding: '3px 8px' }}
+                    >
+                      Find All ({selectedTable.name})
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const catCol = selectedTable.columns.find(c => /status|role|type|category|plan/i.test(c.name))?.name || 'status';
+                        const q = `${selectedTable.name}.aggregate([\n  { $group: { _id: "$${catCol}", count: { $sum: 1 } } },\n  { $sort: { count: -1 } }\n])`;
+                        setSqlQuery(q);
+                        handleExecuteSql(q);
+                      }}
+                      className="btn-secondary"
+                      style={{ fontSize: '11px', padding: '3px 8px' }}
+                    >
+                      📊 Group & Count
+                    </button>
+                  </>
                 ) : (
                   <>
                     <button 
-                      onClick={() => setSqlQuery(`SELECT * FROM ${selectedTable.name} LIMIT 20;`)}
+                      onClick={() => {
+                        const dateCol = selectedTable.columns.find(c => /date|time|created|updated|at$/i.test(c.name))?.name || (selectedTable.columns.find(c => c.isPrimaryKey)?.name || 'id');
+                        const q = `SELECT * FROM ${selectedTable.name} ORDER BY ${dateCol} DESC LIMIT 25;`;
+                        setSqlQuery(q);
+                        handleExecuteSql(q);
+                      }}
                       className="btn-secondary"
                       style={{ fontSize: '11px', padding: '3px 8px' }}
+                      title="Fetch recent rows ordered by date/ID"
                     >
-                      SELECT * {selectedTable.name}
+                      ⏱️ Recent
                     </button>
                     <button 
-                      onClick={() => setSqlQuery(`SELECT COUNT(*) FROM ${selectedTable.name};`)}
+                      onClick={() => {
+                        const catCol = selectedTable.columns.find(c => /status|role|type|category|plan|state/i.test(c.name))?.name || (selectedTable.columns.length > 1 ? selectedTable.columns[1].name : 'id');
+                        const q = `SELECT ${catCol}, COUNT(*) as total FROM ${selectedTable.name} GROUP BY ${catCol} ORDER BY total DESC;`;
+                        setSqlQuery(q);
+                        handleExecuteSql(q);
+                      }}
                       className="btn-secondary"
                       style={{ fontSize: '11px', padding: '3px 8px' }}
+                      title="Group and count records"
                     >
-                      Count ({selectedTable.name})
+                      📊 Group & Count
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const nullCol = selectedTable.columns.find(c => !c.isPrimaryKey)?.name || 'id';
+                        const q = `SELECT * FROM ${selectedTable.name} WHERE ${nullCol} IS NULL;`;
+                        setSqlQuery(q);
+                        handleExecuteSql(q);
+                      }}
+                      className="btn-secondary"
+                      style={{ fontSize: '11px', padding: '3px 8px' }}
+                      title="Find records with NULL values"
+                    >
+                      🔍 Find Nulls
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const q = `SELECT ${selectedTable.columns.map(c => c.name).join(', ')} FROM ${selectedTable.name} LIMIT 50;`;
+                        setSqlQuery(q);
+                        handleExecuteSql(q);
+                      }}
+                      className="btn-secondary"
+                      style={{ fontSize: '11px', padding: '3px 8px' }}
+                      title="Select all explicit columns"
+                    >
+                      📋 Column List
                     </button>
                   </>
                 )
               )}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
               <button
                 onClick={() => setIsAiModalOpen(true)}
                 className="btn-secondary"
@@ -432,6 +499,8 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
       <AiCopilotModal
         isOpen={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}
+        activeDb={activeDb}
+        selectedTable={selectedTable}
         onApplySql={(generatedSql) => {
           setSqlQuery(generatedSql);
         }}

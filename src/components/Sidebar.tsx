@@ -28,6 +28,7 @@ declare const __APP_VERSION__: string;
 import { NewCollectionModal } from './ApiStudio/NewCollectionModal';
 import { NewConnectionModal } from './DatabaseStudio/NewConnectionModal';
 import { ImportExportModal } from './ApiStudio/ImportExportModal';
+import { SAMPLE_PLAYGROUND_DB } from '../data/mockData';
 
 export type WorkspaceTab = 'api' | 'db' | 'streams' | 'secrets' | 'history';
 
@@ -556,150 +557,177 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             </div>
 
-            {databases.map((db, dbIndex) => {
-              const isSelected = activeDb?.id === db.id;
-              const isDraggingThisDb = draggedDbIndex === dbIndex;
-              const isOverThisDb = dragOverDbIndex === dbIndex;
+            {databases.length === 0 ? (
+              <div style={{ padding: '16px 8px', textAlign: 'center' }}>
+                <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '12px', lineHeight: 1.4 }}>
+                  No database connections added yet.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <button
+                    onClick={() => {
+                      onAddDatabase(SAMPLE_PLAYGROUND_DB);
+                      onSelectDb(SAMPLE_PLAYGROUND_DB);
+                    }}
+                    className="btn-secondary"
+                    style={{ fontSize: '11px', padding: '6px 10px', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)', width: '100%' }}
+                  >
+                    ⚡ Load Sample Playground DB
+                  </button>
+                  <button
+                    onClick={() => setIsNewDbModalOpen(true)}
+                    className="btn-secondary"
+                    style={{ fontSize: '11px', padding: '6px 10px', width: '100%' }}
+                  >
+                    + Add New Connection
+                  </button>
+                </div>
+              </div>
+            ) : (
+              databases.map((db, dbIndex) => {
+                const isSelected = activeDb?.id === db.id;
+                const isDraggingThisDb = draggedDbIndex === dbIndex;
+                const isOverThisDb = dragOverDbIndex === dbIndex;
 
-              return (
-                <div
-                  key={db.id}
-                  draggable={!editingDbId}
-                  onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = 'move';
-                    setDraggedDbIndex(dbIndex);
-                  }}
-                  onDragEnd={() => {
-                    setDraggedDbIndex(null);
-                    setDragOverDbIndex(null);
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    if (draggedDbIndex !== null && draggedDbIndex !== dbIndex) {
-                      setDragOverDbIndex(dbIndex);
-                    }
-                  }}
-                  onDragLeave={() => {
-                    if (dragOverDbIndex === dbIndex) setDragOverDbIndex(null);
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    if (draggedDbIndex !== null && draggedDbIndex !== dbIndex) {
-                      if (onReorderDatabases) onReorderDatabases(draggedDbIndex, dbIndex);
+                return (
+                  <div
+                    key={db.id}
+                    draggable={!editingDbId}
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = 'move';
+                      setDraggedDbIndex(dbIndex);
+                    }}
+                    onDragEnd={() => {
                       setDraggedDbIndex(null);
                       setDragOverDbIndex(null);
-                    }
-                  }}
-                  className={`sidebar-item ${isSelected ? 'active' : ''}`}
-                  onClick={() => onSelectDb(db)}
-                  style={{
-                    padding: '8px',
-                    marginBottom: '6px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    opacity: isDraggingThisDb ? 0.35 : 1,
-                    borderTop: isOverThisDb ? '2px solid #10b981' : 'none',
-                    cursor: 'grab',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <div 
-                    className="sidebar-item-left" 
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onDoubleClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setEditingDbId(db.id);
-                      setEditingDbName(db.name);
                     }}
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0, cursor: 'pointer' }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (draggedDbIndex !== null && draggedDbIndex !== dbIndex) {
+                        setDragOverDbIndex(dbIndex);
+                      }
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverDbIndex === dbIndex) setDragOverDbIndex(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedDbIndex !== null && draggedDbIndex !== dbIndex) {
+                        if (onReorderDatabases) onReorderDatabases(draggedDbIndex, dbIndex);
+                        setDraggedDbIndex(null);
+                        setDragOverDbIndex(null);
+                      }
+                    }}
+                    className={`sidebar-item ${isSelected ? 'active' : ''}`}
+                    onClick={() => onSelectDb(db)}
+                    style={{
+                      padding: '8px',
+                      marginBottom: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      opacity: isDraggingThisDb ? 0.35 : 1,
+                      borderTop: isOverThisDb ? '2px solid #10b981' : 'none',
+                      cursor: 'grab',
+                      transition: 'all 0.15s ease'
+                    }}
                   >
-                    <GripVertical size={11} style={{ opacity: 0.35, flexShrink: 0 }} />
-                    <HardDrive size={14} color={db.isConnected ? '#10b981' : '#64748b'} style={{ flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      {editingDbId === db.id ? (
-                        <input
-                          autoFocus
-                          value={editingDbName}
-                          onChange={(e) => setEditingDbName(e.target.value)}
-                          onFocus={(e) => e.target.select()}
-                          onClick={(e) => e.stopPropagation()}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              if (onRenameDatabase && editingDbName.trim()) {
-                                onRenameDatabase(db.id, editingDbName.trim());
-                              }
-                              setEditingDbId(null);
-                            } else if (e.key === 'Escape') {
-                              setEditingDbId(null);
-                            }
-                          }}
-                          onBlur={() => {
-                            if (onRenameDatabase && editingDbName.trim()) {
-                              onRenameDatabase(db.id, editingDbName.trim());
-                            }
-                            setEditingDbId(null);
-                          }}
-                          className="inline-rename-input"
-                          style={{ height: '20px', fontSize: '11px', width: '100%' }}
-                        />
-                      ) : (
-                        <div 
-                          title="Double-click to rename connection"
-                          style={{ fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                        >
-                          {db.name}
-                        </div>
-                      )}
-                      <div style={{ fontSize: '10px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
-                        {db.type.toUpperCase()} • {db.database}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingDbConfig(db);
-                        setIsNewDbModalOpen(true);
-                      }}
-                      className="sidebar-action-btn"
-                      title={`Edit connection parameters for "${db.name}"`}
-                      style={{ opacity: isSelected ? 1 : 0.6 }}
-                    >
-                      <Settings size={11} color="var(--text-dim)" />
-                    </button>
-                    <button
-                      onClick={(e) => {
+                    <div 
+                      className="sidebar-item-left" 
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onDoubleClick={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
                         setEditingDbId(db.id);
                         setEditingDbName(db.name);
                       }}
-                      className="sidebar-action-btn"
-                      title={`Rename "${db.name}"`}
-                      style={{ opacity: isSelected ? 1 : 0.6 }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0, cursor: 'pointer' }}
                     >
-                      <Edit3 size={11} color="var(--text-dim)" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (confirm(`Remove database connection "${db.name}"?`)) {
-                          onDeleteDatabase(db.id);
-                        }
-                      }}
-                      className="sidebar-action-btn"
-                      title="Remove Connection"
-                    >
-                      <Trash2 size={11} />
-                    </button>
+                      <GripVertical size={11} style={{ opacity: 0.35, flexShrink: 0 }} />
+                      <HardDrive size={14} color={db.isConnected ? '#10b981' : '#64748b'} style={{ flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {editingDbId === db.id ? (
+                          <input
+                            autoFocus
+                            value={editingDbName}
+                            onChange={(e) => setEditingDbName(e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                if (onRenameDatabase && editingDbName.trim()) {
+                                  onRenameDatabase(db.id, editingDbName.trim());
+                                }
+                                setEditingDbId(null);
+                              } else if (e.key === 'Escape') {
+                                setEditingDbId(null);
+                              }
+                            }}
+                            onBlur={() => {
+                              if (onRenameDatabase && editingDbName.trim()) {
+                                onRenameDatabase(db.id, editingDbName.trim());
+                              }
+                              setEditingDbId(null);
+                            }}
+                            className="inline-rename-input"
+                            style={{ height: '20px', fontSize: '11px', width: '100%' }}
+                          />
+                        ) : (
+                          <div 
+                            title="Double-click to rename connection"
+                            style={{ fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          >
+                            {db.name}
+                          </div>
+                        )}
+                        <div style={{ fontSize: '10px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+                          {db.type.toUpperCase()} • {db.database}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingDbConfig(db);
+                          setIsNewDbModalOpen(true);
+                        }}
+                        className="sidebar-action-btn"
+                        title={`Edit connection parameters for "${db.name}"`}
+                        style={{ opacity: isSelected ? 1 : 0.6 }}
+                      >
+                        <Settings size={11} color="var(--text-dim)" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingDbId(db.id);
+                          setEditingDbName(db.name);
+                        }}
+                        className="sidebar-action-btn"
+                        title={`Rename "${db.name}"`}
+                        style={{ opacity: isSelected ? 1 : 0.6 }}
+                      >
+                        <Edit3 size={11} color="var(--text-dim)" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm(`Remove database connection "${db.name}"?`)) {
+                            onDeleteDatabase(db.id);
+                          }
+                        }}
+                        className="sidebar-action-btn"
+                        title="Remove Connection"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         )}
 
