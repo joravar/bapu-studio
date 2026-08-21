@@ -1,7 +1,7 @@
 {
   "name": "bapu-studio",
   "private": true,
-  "version": "1.0.4",
+  "version": "1.0.5",
   "type": "module",
   "main": "electron-main.cjs",
   "description": "The honest, open-source, local-first developer cockpit for APIs, Databases, and Secrets.",

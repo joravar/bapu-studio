@@ -119,22 +119,57 @@ export const DatabaseService = {
 
     // 1. SELECT queries
     if (lower.startsWith('select') || lower.includes('select ')) {
+      // Helper to project requested columns from raw table objects
+      const projectColumns = (rawRows: any[], requestedColumnsStr: string, allPossibleColumns: string[]): { columns: string[]; rows: any[] } => {
+        const trimmed = requestedColumnsStr.trim();
+        if (trimmed === '*' || !trimmed) {
+          return { columns: allPossibleColumns, rows: rawRows };
+        }
+
+        const requestedCols = trimmed
+          .split(',')
+          .map(c => c.trim().replace(/^[`"']|[`"']$/g, '').toLowerCase())
+          .filter(Boolean);
+
+        const matchedCols = allPossibleColumns.filter(c => requestedCols.includes(c.toLowerCase()));
+        const finalCols = matchedCols.length > 0 ? matchedCols : allPossibleColumns;
+
+        const projectedRows = rawRows.map(row => {
+          const newRow: Record<string, any> = {};
+          finalCols.forEach(col => {
+            newRow[col] = row[col];
+          });
+          return newRow;
+        });
+
+        return { columns: finalCols, rows: projectedRows };
+      };
+
+      // Extract requested column projection
+      const selectMatch = cleanSql.match(/select\s+([\s\S]+?)\s+from\s+(\w+)/i);
+      const requestedColsStr = selectMatch ? selectMatch[1].trim() : '*';
+      const limitMatch = cleanSql.match(/limit\s+(\d+)/i);
+      const limitVal = limitMatch ? parseInt(limitMatch[1], 10) : null;
+
       // JOIN queries between users and accounts
       if (lower.includes('join')) {
+        let rows = [
+          { user_id: 'u_101', user_name: 'Alex Rivera', email: 'alex.rivera@acme.dev', account_id: 'acc_881', balance_usd: '$2,450.00', status: 'ACTIVE' },
+          { user_id: 'u_103', user_name: 'Elena Rostova', email: 'elena.rostova@cloudscale.net', account_id: 'acc_882', balance_usd: '$890.00', status: 'ACTIVE' },
+          { user_id: 'u_105', user_name: 'Priya Sharma', email: 'priya.sharma@hyperloop.io', account_id: 'acc_883', balance_usd: '$142.00', status: 'ACTIVE' }
+        ];
+        if (limitVal !== null) rows = rows.slice(0, limitVal);
+        const projected = projectColumns(rows, requestedColsStr, ['user_id', 'user_name', 'email', 'account_id', 'balance_usd', 'status']);
         return {
           success: true,
-          columns: ['user_id', 'user_name', 'email', 'account_id', 'balance_usd', 'status'],
-          rows: [
-            { user_id: 'u_101', user_name: 'Alex Rivera', email: 'alex.rivera@acme.dev', account_id: 'acc_881', balance_usd: '$2,450.00', status: 'ACTIVE' },
-            { user_id: 'u_103', user_name: 'Elena Rostova', email: 'elena.rostova@cloudscale.net', account_id: 'acc_882', balance_usd: '$890.00', status: 'ACTIVE' },
-            { user_id: 'u_105', user_name: 'Priya Sharma', email: 'priya.sharma@hyperloop.io', account_id: 'acc_883', balance_usd: '$142.00', status: 'ACTIVE' }
-          ],
-          rowCount: 3,
+          columns: projected.columns,
+          rows: projected.rows,
+          rowCount: projected.rows.length,
           executionTimeMs: 18
         };
       }
 
-      if (lower.includes('count')) {
+      if (lower.includes('count') && lower.includes('group by')) {
         return {
           success: true,
           columns: ['role', 'user_count'],
@@ -145,6 +180,16 @@ export const DatabaseService = {
           ],
           rowCount: 3,
           executionTimeMs: 12
+        };
+      }
+
+      if (lower.startsWith('select count(') || lower.startsWith('select count (*)')) {
+        return {
+          success: true,
+          columns: ['total_count'],
+          rows: [{ total_count: 1420 }],
+          rowCount: 1,
+          executionTimeMs: 8
         };
       }
 
@@ -160,33 +205,37 @@ export const DatabaseService = {
           rows.sort((a, b) => b.storage_mb - a.storage_mb);
         }
 
-        // Filter if query has enterprise filter
         if (lower.includes('enterprise')) {
           rows = rows.filter(r => r.plan_tier === 'enterprise');
         } else if (lower.includes('pro')) {
           rows = rows.filter(r => r.plan_tier === 'pro');
         }
 
+        if (limitVal !== null) rows = rows.slice(0, limitVal);
+        const projected = projectColumns(rows, requestedColsStr, ['id', 'name', 'plan_tier', 'storage_mb', 'created_at']);
+
         return {
           success: true,
-          columns: ['id', 'name', 'plan_tier', 'storage_mb', 'created_at'],
-          rows,
-          rowCount: rows.length,
+          columns: projected.columns,
+          rows: projected.rows,
+          rowCount: projected.rows.length,
           executionTimeMs: 14
         };
       }
 
       if (lower.includes('accounts') || lower.includes('balance')) {
-        const rows = [
+        let rows = [
           { id: 'acc_881', user_id: 'u_101', balance_cents: 245000, currency: 'USD', status: 'ACTIVE' },
           { id: 'acc_882', user_id: 'u_103', balance_cents: 89000, currency: 'USD', status: 'ACTIVE' },
           { id: 'acc_883', user_id: 'u_105', balance_cents: 14200, currency: 'EUR', status: 'ACTIVE' }
         ];
+        if (limitVal !== null) rows = rows.slice(0, limitVal);
+        const projected = projectColumns(rows, requestedColsStr, ['id', 'user_id', 'balance_cents', 'currency', 'status']);
         return {
           success: true,
-          columns: ['id', 'user_id', 'balance_cents', 'currency', 'status'],
-          rows,
-          rowCount: rows.length,
+          columns: projected.columns,
+          rows: projected.rows,
+          rowCount: projected.rows.length,
           executionTimeMs: 15
         };
       }
@@ -200,15 +249,24 @@ export const DatabaseService = {
         { id: 'u_105', email: 'priya.sharma@hyperloop.io', name: 'Priya Sharma', role: 'billing', status: 'ACTIVE', created_at: '2026-02-14 16:30:19' }
       ];
 
-      if (lower.includes("role = 'admin'") || lower.includes('admin')) {
+      if (lower.includes("role = 'admin'") || (lower.includes('admin') && lower.includes('where'))) {
         rows = rows.filter(r => r.role === 'admin');
+      } else if (lower.includes('is null')) {
+        rows = [];
       }
+
+      if (lower.includes('order by') && lower.includes('desc')) {
+        rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+      }
+
+      if (limitVal !== null) rows = rows.slice(0, limitVal);
+      const projected = projectColumns(rows, requestedColsStr, ['id', 'email', 'name', 'role', 'status', 'created_at']);
 
       return {
         success: true,
-        columns: ['id', 'email', 'name', 'role', 'status', 'created_at'],
-        rows,
-        rowCount: rows.length,
+        columns: projected.columns,
+        rows: projected.rows,
+        rowCount: projected.rows.length,
         executionTimeMs: 16
       };
     }
