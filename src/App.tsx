@@ -138,7 +138,7 @@ export const App: React.FC = () => {
       id: `req-${Date.now()}`,
       name: 'New HTTP Request',
       method: 'GET',
-      url: '{{API_BASE_URL}}/v1/resource',
+      url: '',
       params: [],
       headers: [{ id: 'h-def', key: 'Accept', value: 'application/json', enabled: true }],
       bodyType: 'none',
