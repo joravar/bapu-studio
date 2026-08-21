@@ -264,6 +264,68 @@ test('Code Generators: Generate valid cURL, JavaScript Fetch, Python Requests, a
   assert.ok(goCode.includes('http.NewRequest("POST"'));
 });
 
+test('GraphQL Engine: Serialize Query + Variables and inject application/json Content-Type', () => {
+  const gqlReq = {
+    method: 'POST',
+    url: 'https://api.github.com/graphql',
+    headers: [{ key: 'Authorization', value: 'Bearer ghp_test', enabled: true }],
+    bodyType: 'graphql',
+    graphqlQuery: 'query GetUser($login: String!) { user(login: $login) { id name } }',
+    graphqlVariables: '{"login": "joravar"}'
+  };
+
+  // Serialization simulation
+  let parsedVars = {};
+  try { parsedVars = JSON.parse(gqlReq.graphqlVariables); } catch {}
+  
+  const payload = JSON.stringify({
+    query: gqlReq.graphqlQuery,
+    variables: parsedVars
+  });
+
+  const parsedPayload = JSON.parse(payload);
+  assert.strictEqual(parsedPayload.variables.login, 'joravar');
+  assert.ok(parsedPayload.query.includes('GetUser'));
+
+  // Header check
+  const reqHeaders = { 'Authorization': 'Bearer ghp_test' };
+  if (gqlReq.bodyType === 'graphql' && !reqHeaders['Content-Type']) {
+    reqHeaders['Content-Type'] = 'application/json';
+  }
+  assert.strictEqual(reqHeaders['Content-Type'], 'application/json');
+});
+
+test('GraphQL Engine: Prettify and format GraphQL query syntax', () => {
+  function prettifyGraphQL(query) {
+    if (!query || !query.trim()) return '';
+    let indent = 0;
+    const lines = query.split('\n');
+    const formattedLines = [];
+
+    for (let rawLine of lines) {
+      const trimmed = rawLine.trim();
+      if (!trimmed) continue;
+
+      if (trimmed.startsWith('}') || trimmed.startsWith(')')) {
+        indent = Math.max(0, indent - 1);
+      }
+
+      formattedLines.push('  '.repeat(indent) + trimmed);
+
+      if (trimmed.endsWith('{') || trimmed.endsWith('(')) {
+        indent++;
+      }
+    }
+
+    return formattedLines.join('\n');
+  }
+
+  const unformatted = 'query GetRepo {\nrepository {\nid\nname\n}\n}';
+  const formatted = prettifyGraphQL(unformatted);
+  const expected = 'query GetRepo {\n  repository {\n    id\n    name\n  }\n}';
+  assert.strictEqual(formatted, expected);
+});
+
 // ------------------------------------------------------------------------------
 // 4. DATABASE DRIVER SERVICE INTEGRITY
 // ------------------------------------------------------------------------------

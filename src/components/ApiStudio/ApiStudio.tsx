@@ -47,6 +47,7 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
   const [isCodeModalOpen, setIsCodeModalOpen] = useState(false);
   const [isCurlModalOpen, setIsCurlModalOpen] = useState(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [isVariablesCollapsed, setIsVariablesCollapsed] = useState(false);
 
   // Resizable split ratio between Request and Response panels
   const [splitPct, setSplitPct] = useState<number>(() => {
@@ -103,6 +104,30 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
     return resolved;
   };
 
+  const prettifyGraphQL = (query: string): string => {
+    if (!query || !query.trim()) return '';
+    let indent = 0;
+    const lines = query.split('\n');
+    const formattedLines: string[] = [];
+
+    for (let rawLine of lines) {
+      const trimmed = rawLine.trim();
+      if (!trimmed) continue;
+
+      if (trimmed.startsWith('}') || trimmed.startsWith(')')) {
+        indent = Math.max(0, indent - 1);
+      }
+
+      formattedLines.push('  '.repeat(indent) + trimmed);
+
+      if (trimmed.endsWith('{') || trimmed.endsWith('(')) {
+        indent++;
+      }
+    }
+
+    return formattedLines.join('\n');
+  };
+
   const handleSend = async () => {
     setIsLoading(true);
     const startTime = performance.now();
@@ -151,12 +176,25 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
       reqHeaders['Authorization'] = `Basic ${basicCreds}`;
     }
 
-    if (activeRequest.bodyType === 'json' && !reqHeaders['Content-Type'] && !reqHeaders['content-type']) {
+    if ((activeRequest.bodyType === 'json' || activeRequest.bodyType === 'graphql') && !reqHeaders['Content-Type'] && !reqHeaders['content-type']) {
       reqHeaders['Content-Type'] = 'application/json';
     }
 
     let resolvedBody: string | undefined = undefined;
-    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(activeRequest.method) && activeRequest.bodyContent) {
+    if (activeRequest.bodyType === 'graphql') {
+      let vars = {};
+      if (activeRequest.graphqlVariables) {
+        try {
+          const resolvedVarsStr = resolveVariables(activeRequest.graphqlVariables, currentEnv);
+          vars = JSON.parse(resolvedVarsStr);
+        } catch {}
+      }
+      const resolvedQuery = resolveVariables(activeRequest.graphqlQuery || '', currentEnv);
+      resolvedBody = JSON.stringify({
+        query: resolvedQuery,
+        variables: vars
+      });
+    } else if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(activeRequest.method) && activeRequest.bodyContent) {
       resolvedBody = resolveVariables(activeRequest.bodyContent, currentEnv);
     }
 
@@ -626,36 +664,121 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
 
             {activeSubTab === 'body' && (
               <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', gap: '12px', padding: '8px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
-                  {(['none', 'json', 'form', 'raw'] as const).map(bt => (
+                <div style={{ display: 'flex', gap: '12px', padding: '8px 12px', borderBottom: '1px solid var(--border-subtle)', alignItems: 'center' }}>
+                  {(['none', 'json', 'form', 'raw', 'graphql'] as const).map(bt => (
                     <label key={bt} style={{ fontSize: '11px', color: activeRequest.bodyType === bt ? 'var(--text-main)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
                       <input 
                         type="radio" 
                         name="bodyType" 
                         checked={activeRequest.bodyType === bt}
-                        onChange={() => onUpdateRequest({ ...activeRequest, bodyType: bt })}
+                        onChange={() => {
+                          const updates: Partial<ApiRequest> = { bodyType: bt };
+                          if (bt === 'graphql' && activeRequest.method === 'GET') {
+                            updates.method = 'POST';
+                          }
+                          onUpdateRequest({ ...activeRequest, ...updates });
+                        }}
                       />
-                      {bt.toUpperCase()}
+                      {bt === 'graphql' ? 'GraphQL' : bt.toUpperCase()}
                     </label>
                   ))}
                 </div>
-                {activeRequest.bodyType !== 'none' && (
-                  <textarea
-                    value={activeRequest.bodyContent}
-                    onChange={(e) => onUpdateRequest({ ...activeRequest, bodyContent: e.target.value })}
-                    placeholder="Enter JSON or raw request payload..."
-                    style={{
-                      flex: 1,
-                      background: 'transparent',
-                      border: 'none',
-                      color: 'var(--text-main)',
-                      padding: '12px',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '12px',
-                      resize: 'none',
-                      outline: 'none'
-                    }}
-                  />
+
+                {activeRequest.bodyType === 'graphql' ? (
+                  /* Dedicated GraphQL Split Editor */
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    {/* Upper: Query / Mutation Editor */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--border-subtle)', minHeight: '160px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', background: 'rgba(147, 51, 234, 0.05)', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: '#c084fc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>📝</span> GraphQL Query / Mutation
+                        </span>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            onClick={() => {
+                              const prettified = prettifyGraphQL(activeRequest.graphqlQuery || '');
+                              onUpdateRequest({ ...activeRequest, graphqlQuery: prettified });
+                            }}
+                            className="btn-secondary"
+                            style={{ fontSize: '10px', padding: '2px 8px', color: '#c084fc', borderColor: 'rgba(147, 51, 234, 0.3)' }}
+                            title="Prettify GraphQL Query"
+                          >
+                            ✨ Prettify Query
+                          </button>
+                        </div>
+                      </div>
+                      <textarea
+                        value={activeRequest.graphqlQuery || ''}
+                        onChange={(e) => onUpdateRequest({ ...activeRequest, graphqlQuery: e.target.value })}
+                        placeholder={"query GetUser($id: ID!) {\n  user(id: $id) {\n    id\n    name\n    email\n  }\n}"}
+                        style={{
+                          flex: 1,
+                          background: '#070a10',
+                          border: 'none',
+                          color: '#e2e8f0',
+                          padding: '12px',
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '12px',
+                          resize: 'none',
+                          outline: 'none',
+                          lineHeight: '1.6'
+                        }}
+                      />
+                    </div>
+
+                    {/* Lower: Variables Editor */}
+                    <div style={{ height: isVariablesCollapsed ? '32px' : '140px', display: 'flex', flexDirection: 'column', background: '#090d14', transition: 'height 0.15s ease' }}>
+                      <div 
+                        onClick={() => setIsVariablesCollapsed(!isVariablesCollapsed)}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', background: '#0d1117', borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer', userSelect: 'none' }}
+                      >
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>{isVariablesCollapsed ? '▶' : '▼'}</span>
+                          <span>⚙️ GraphQL Variables (JSON)</span>
+                        </span>
+                        <span style={{ fontSize: '10px', color: 'var(--text-dim)' }}>
+                          {isVariablesCollapsed ? 'Click to expand' : 'JSON Object'}
+                        </span>
+                      </div>
+                      {!isVariablesCollapsed && (
+                        <textarea
+                          value={activeRequest.graphqlVariables || ''}
+                          onChange={(e) => onUpdateRequest({ ...activeRequest, graphqlVariables: e.target.value })}
+                          placeholder='{\n  "id": "123"\n}'
+                          style={{
+                            flex: 1,
+                            background: '#05070a',
+                            border: 'none',
+                            color: '#38bdf8',
+                            padding: '10px 12px',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '11px',
+                            resize: 'none',
+                            outline: 'none'
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  activeRequest.bodyType !== 'none' && (
+                    <textarea
+                      value={activeRequest.bodyContent}
+                      onChange={(e) => onUpdateRequest({ ...activeRequest, bodyContent: e.target.value })}
+                      placeholder="Enter JSON or raw request payload..."
+                      style={{
+                        flex: 1,
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-main)',
+                        padding: '12px',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '12px',
+                        resize: 'none',
+                        outline: 'none'
+                      }}
+                    />
+                  )
                 )}
               </div>
             )}

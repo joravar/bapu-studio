@@ -21,8 +21,10 @@ export interface ApiRequest {
   url: string;
   params: KeyValuePair[];
   headers: KeyValuePair[];
-  bodyType: 'none' | 'json' | 'form' | 'raw';
+  bodyType: 'none' | 'json' | 'form' | 'raw' | 'graphql';
   bodyContent: string;
+  graphqlQuery?: string;
+  graphqlVariables?: string;
   authType: 'none' | 'bearer' | 'basic' | 'apikey';
   authConfig: {
     token?: string;
