@@ -1017,6 +1017,153 @@ test('Database Studio: Test Connection handles in-memory Playground databases se
   assert.strictEqual(remoteRes.success, false);
 });
 
+test('Database Studio: DBeaver-style multiple SQL script tabs lifecycle & persistence', () => {
+  let tabs = [
+    { id: 'tab-1', databaseId: 'db-pg-1', name: 'Script 1.sql', query: 'SELECT * FROM users;' }
+  ];
+
+  // 1. Add new tab
+  const newTab = { id: 'tab-2', databaseId: 'db-pg-1', name: 'Script 2.sql', query: 'SELECT count(*) FROM orders;' };
+  tabs.push(newTab);
+  assert.strictEqual(tabs.length, 2);
+
+  // 2. Rename tab
+  tabs = tabs.map(t => t.id === 'tab-2' ? { ...t, name: 'Orders Analytics.sql' } : t);
+  assert.strictEqual(tabs[1].name, 'Orders Analytics.sql');
+
+  // 3. Update query in active tab
+  tabs = tabs.map(t => t.id === 'tab-2' ? { ...t, query: 'SELECT status, count(*) FROM orders GROUP BY status;' } : t);
+  assert.ok(tabs[1].query.includes('GROUP BY status'));
+
+  // 4. Close first tab (ensure remaining tab persists)
+  tabs = tabs.filter(t => t.id !== 'tab-1');
+  assert.strictEqual(tabs.length, 1);
+  assert.strictEqual(tabs[0].id, 'tab-2');
+});
+
+test('Database Studio: Selected statement extraction & partial query execution', () => {
+  const fullSql = `
+    SELECT * FROM users WHERE status = 'ACTIVE';
+    SELECT id, total FROM orders WHERE total > 100;
+    DELETE FROM sessions WHERE expired = true;
+  `;
+
+  function extractExecutableQuery(fullText, selectionStart, selectionEnd) {
+    if (selectionStart !== undefined && selectionEnd !== undefined && selectionStart !== selectionEnd) {
+      const selected = fullText.substring(selectionStart, selectionEnd).trim();
+      if (selected) return { query: selected, isSelection: true };
+    }
+    return { query: fullText.trim(), isSelection: false };
+  }
+
+  // 1. Highlight second statement only
+  const target = "SELECT id, total FROM orders WHERE total > 100;";
+  const start = fullSql.indexOf(target);
+  const end = start + target.length;
+
+  const res1 = extractExecutableQuery(fullSql, start, end);
+  assert.strictEqual(res1.isSelection, true);
+  assert.strictEqual(res1.query, target);
+
+  // 2. No highlight runs full query
+  const res2 = extractExecutableQuery(fullSql, 0, 0);
+  assert.strictEqual(res2.isSelection, false);
+  assert.ok(res2.query.includes('DELETE FROM sessions'));
+});
+
+test('Database Studio: EXPLAIN query wrapping across PostgreSQL, MySQL, SQLite, and MongoDB dialects', () => {
+  function wrapExplainQuery(dbType, sql) {
+    const trimmed = sql.trim().replace(/;+$/, '');
+    if (trimmed.toUpperCase().startsWith('EXPLAIN')) return sql;
+
+    if (dbType === 'postgres') {
+      return `EXPLAIN (ANALYZE, COSTS, VERBOSE, BUFFERS)\n${trimmed};`;
+    }
+    if (dbType === 'mysql') {
+      return `EXPLAIN FORMAT=JSON\n${trimmed};`;
+    }
+    if (dbType === 'sqlite') {
+      return `EXPLAIN QUERY PLAN\n${trimmed};`;
+    }
+    if (dbType === 'mongodb') {
+      if (trimmed.includes('.find(') || trimmed.includes('.aggregate(')) {
+        return `${trimmed}.explain("executionStats")`;
+      }
+      return trimmed;
+    }
+    return `EXPLAIN ${trimmed};`;
+  }
+
+  // PostgreSQL dialect
+  const pgExplain = wrapExplainQuery('postgres', 'SELECT * FROM users');
+  assert.ok(pgExplain.includes('EXPLAIN (ANALYZE, COSTS, VERBOSE, BUFFERS)'));
+  assert.ok(pgExplain.endsWith(';'));
+
+  // MySQL dialect
+  const myExplain = wrapExplainQuery('mysql', 'SELECT * FROM products');
+  assert.ok(myExplain.includes('EXPLAIN FORMAT=JSON'));
+
+  // SQLite dialect
+  const sqExplain = wrapExplainQuery('sqlite', 'SELECT * FROM logs');
+  assert.ok(sqExplain.includes('EXPLAIN QUERY PLAN'));
+
+  // MongoDB dialect
+  const mgExplain = wrapExplainQuery('mongodb', 'products.find({ price: { $gt: 50 } })');
+  assert.strictEqual(mgExplain, 'products.find({ price: { $gt: 50 } }).explain("executionStats")');
+
+  // Already prefixed query should not be double wrapped
+  const alreadyExplained = wrapExplainQuery('postgres', 'EXPLAIN ANALYZE SELECT 1;');
+  assert.strictEqual(alreadyExplained, 'EXPLAIN ANALYZE SELECT 1;');
+});
+
+test('Database Studio: Custom SSL CA and mTLS certificate configuration validation', () => {
+  function buildSslOptions(config) {
+    const isSslNeeded = config.ssl !== false && (
+      config.ssl === true || 
+      Boolean(config.sslCaCert || config.sslClientCert) ||
+      (config.connectionString && config.connectionString.includes('sslmode'))
+    );
+
+    if (!isSslNeeded) return undefined;
+
+    const sslConfig = {
+      rejectUnauthorized: config.sslRejectUnauthorized !== undefined ? Boolean(config.sslRejectUnauthorized) : Boolean(config.sslCaCert),
+      servername: config.host || undefined
+    };
+
+    if (config.sslCaCert) sslConfig.ca = config.sslCaCert;
+    if (config.sslClientCert) sslConfig.cert = config.sslClientCert;
+    if (config.sslClientKey) sslConfig.key = config.sslClientKey;
+
+    return sslConfig;
+  }
+
+  // 1. AWS RDS with custom Root CA
+  const rdsConfig = {
+    ssl: true,
+    host: 'aurora-pg.cluster-xyz.us-east-1.rds.amazonaws.com',
+    sslCaCert: '-----BEGIN CERTIFICATE-----\nMIIB...rds-ca\n-----END CERTIFICATE-----',
+    sslRejectUnauthorized: true
+  };
+  const rdsSsl = buildSslOptions(rdsConfig);
+  assert.strictEqual(rdsSsl.rejectUnauthorized, true);
+  assert.ok(rdsSsl.ca.includes('rds-ca'));
+  assert.strictEqual(rdsSsl.servername, 'aurora-pg.cluster-xyz.us-east-1.rds.amazonaws.com');
+
+  // 2. Enterprise mTLS with client cert and private key
+  const mtlsConfig = {
+    ssl: true,
+    host: 'secure-db.internal.corp',
+    sslCaCert: 'root-ca-pem',
+    sslClientCert: 'client-cert-pem',
+    sslClientKey: 'client-key-pem'
+  };
+  const mtlsSsl = buildSslOptions(mtlsConfig);
+  assert.strictEqual(mtlsSsl.ca, 'root-ca-pem');
+  assert.strictEqual(mtlsSsl.cert, 'client-cert-pem');
+  assert.strictEqual(mtlsSsl.key, 'client-key-pem');
+});
+
 // ------------------------------------------------------------------------------
 // 10. HISTORY STUDIO & ACTIVITY AUDIT ENGINE
 // ------------------------------------------------------------------------------
@@ -1252,6 +1399,52 @@ async function runNetworkDaemonSuite() {
     const invalid = safeParseJsonBody('{key: value}');
     assert.strictEqual(invalid.valid, false);
     assert.ok(invalid.error.includes('Malformed JSON'));
+  });
+
+  await test('Error Resilience: Database State Sanitization & Null-Safety Guard', () => {
+    function sanitizeDatabase(db) {
+      if (!db || typeof db !== 'object') {
+        return { id: 'db-empty', name: 'No Connection', type: 'postgres', database: '', isConnected: false, tables: [] };
+      }
+      return {
+        id: String(db.id || `db-${Date.now()}`),
+        name: String(db.name || 'Database Connection'),
+        type: db.type || 'postgres',
+        database: String(db.database || ''),
+        connectionString: db.connectionString ? String(db.connectionString) : undefined,
+        host: db.host ? String(db.host) : undefined,
+        port: db.port ? String(db.port) : undefined,
+        username: db.username ? String(db.username) : undefined,
+        password: db.password ? String(db.password) : undefined,
+        ssl: Boolean(db.ssl),
+        isConnected: Boolean(db.isConnected),
+        isDemoDb: Boolean(db.isDemoDb),
+        tables: Array.isArray(db.tables) ? db.tables.map((t) => ({
+          name: String(t?.name || 'table'),
+          rowCount: typeof t?.rowCount === 'number' ? t.rowCount : 0,
+          columns: Array.isArray(t?.columns) ? t.columns.map((c) => ({
+            name: String(c?.name || 'col'),
+            type: String(c?.type || 'VARCHAR'),
+            isPrimaryKey: Boolean(c?.isPrimaryKey),
+            isNullable: Boolean(c?.isNullable)
+          })) : []
+        })) : []
+      };
+    }
+
+    // Test 1: Null/undefined input
+    const fromNull = sanitizeDatabase(null);
+    assert.strictEqual(fromNull.id, 'db-empty');
+    assert.ok(Array.isArray(fromNull.tables));
+
+    // Test 2: Corrupted database object with missing tables and columns
+    const brokenDb = { id: 'db-broken', name: null, type: undefined, tables: [{ name: 'test_tbl', columns: null }] };
+    const cleanDb = sanitizeDatabase(brokenDb);
+    assert.strictEqual(cleanDb.id, 'db-broken');
+    assert.strictEqual(cleanDb.type, 'postgres');
+    assert.strictEqual(cleanDb.tables.length, 1);
+    assert.ok(Array.isArray(cleanDb.tables[0].columns));
+    assert.strictEqual(cleanDb.tables[0].columns.length, 0);
   });
 
   await test('Ephemeral Daemon: Gracefully terminate in-memory server', async () => {

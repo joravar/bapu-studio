@@ -70,9 +70,26 @@ export interface DatabaseConnection {
   name: string;
   type: 'sqlite' | 'postgres' | 'mysql' | 'redis' | 'mongodb';
   connectionString?: string;
+  host?: string;
+  port?: string;
   database: string;
+  username?: string;
+  password?: string;
+  ssl?: boolean;
+  sslCaCert?: string;
+  sslClientCert?: string;
+  sslClientKey?: string;
+  sslRejectUnauthorized?: boolean;
   isConnected: boolean;
+  isDemoDb?: boolean;
   tables: TableSchema[];
+}
+
+export interface SqlScriptTab {
+  id: string;
+  databaseId: string;
+  name: string;
+  query: string;
 }
 
 export interface QueryResult {
@@ -81,6 +98,9 @@ export interface QueryResult {
   rowCount: number;
   executionTimeMs: number;
   error?: string;
+  notices?: string[];
+  queryPlan?: string;
+  command?: string;
 }
 
 export interface Environment {

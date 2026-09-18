@@ -28,7 +28,7 @@ declare const __APP_VERSION__: string;
 import { NewCollectionModal } from './ApiStudio/NewCollectionModal';
 import { NewConnectionModal } from './DatabaseStudio/NewConnectionModal';
 import { ImportExportModal } from './ApiStudio/ImportExportModal';
-import { SAMPLE_PLAYGROUND_DB } from '../data/mockData';
+import { SAMPLE_PLAYGROUND_DB, SAMPLE_MONGODB_PLAYGROUND_DB } from '../data/mockData';
 
 export type WorkspaceTab = 'api' | 'db' | 'streams' | 'secrets' | 'history';
 
@@ -571,7 +571,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     className="btn-secondary"
                     style={{ fontSize: '11px', padding: '6px 10px', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)', width: '100%' }}
                   >
-                    ⚡ Load Sample Playground DB
+                    ⚡ Load SQL Playground
+                  </button>
+                  <button
+                    onClick={() => {
+                      onAddDatabase(SAMPLE_MONGODB_PLAYGROUND_DB);
+                      onSelectDb(SAMPLE_MONGODB_PLAYGROUND_DB);
+                    }}
+                    className="btn-secondary"
+                    style={{ fontSize: '11px', padding: '6px 10px', color: '#06b6d4', borderColor: 'rgba(6, 182, 212, 0.3)', width: '100%' }}
+                  >
+                    🍃 Load MongoDB Playground
                   </button>
                   <button
                     onClick={() => setIsNewDbModalOpen(true)}
@@ -677,11 +687,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             title="Double-click to rename connection"
                             style={{ fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                           >
-                            {db.name}
+                            {db.name || 'Unnamed Connection'}
                           </div>
                         )}
                         <div style={{ fontSize: '10px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
-                          {db.type.toUpperCase()} • {db.database}
+                          {(db.type || 'DB').toUpperCase()} • {db.database || 'main'}
                         </div>
                       </div>
                     </div>

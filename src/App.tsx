@@ -6,6 +6,7 @@ import { DatabaseStudio } from './components/DatabaseStudio/DatabaseStudio';
 import { StreamStudio } from './components/StreamStudio/StreamStudio';
 import { SecretsStudio } from './components/SecretsStudio/SecretsStudio';
 import { HistoryStudio } from './components/HistoryStudio/HistoryStudio';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { 
   INITIAL_COLLECTIONS, 
   INITIAL_DATABASES, 
@@ -14,6 +15,40 @@ import {
 } from './data/mockData';
 import { ApiRequest, Collection, DatabaseConnection, Environment, HistoryItem } from './types';
 import { Globe, Database, KeyRound, Radio, Sparkles, X, Plus } from 'lucide-react';
+
+export function sanitizeDatabase(db: any): DatabaseConnection {
+  if (!db || typeof db !== 'object') {
+    return { id: 'db-empty', name: 'No Connection', type: 'postgres', database: '', isConnected: false, tables: [] };
+  }
+  return {
+    id: String(db.id || `db-${Date.now()}`),
+    name: String(db.name || 'Database Connection'),
+    type: db.type || 'postgres',
+    database: String(db.database || ''),
+    connectionString: db.connectionString ? String(db.connectionString) : undefined,
+    host: db.host ? String(db.host) : undefined,
+    port: db.port ? String(db.port) : undefined,
+    username: db.username ? String(db.username) : undefined,
+    password: db.password ? String(db.password) : undefined,
+    ssl: Boolean(db.ssl),
+    sslCaCert: db.sslCaCert ? String(db.sslCaCert) : undefined,
+    sslClientCert: db.sslClientCert ? String(db.sslClientCert) : undefined,
+    sslClientKey: db.sslClientKey ? String(db.sslClientKey) : undefined,
+    sslRejectUnauthorized: db.sslRejectUnauthorized !== undefined ? Boolean(db.sslRejectUnauthorized) : undefined,
+    isConnected: Boolean(db.isConnected),
+    isDemoDb: Boolean(db.isDemoDb),
+    tables: Array.isArray(db.tables) ? db.tables.map((t: any) => ({
+      name: String(t?.name || 'table'),
+      rowCount: typeof t?.rowCount === 'number' ? t.rowCount : 0,
+      columns: Array.isArray(t?.columns) ? t.columns.map((c: any) => ({
+        name: String(c?.name || 'col'),
+        type: String(c?.type || 'VARCHAR'),
+        isPrimaryKey: Boolean(c?.isPrimaryKey),
+        isNullable: Boolean(c?.isNullable)
+      })) : []
+    })) : []
+  };
+}
 
 export const App: React.FC = () => {
   // Navigation & Workspace State with LocalStorage Persistence
@@ -41,9 +76,14 @@ export const App: React.FC = () => {
   const [databases, setDatabases] = useState<DatabaseConnection[]>(() => {
     try {
       const saved = localStorage.getItem('bapu_databases');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.map(sanitizeDatabase);
+        }
+      }
     } catch {}
-    return INITIAL_DATABASES;
+    return INITIAL_DATABASES.map(sanitizeDatabase);
   });
 
   const [activeDb, setActiveDb] = useState<DatabaseConnection>(() => {
@@ -51,10 +91,10 @@ export const App: React.FC = () => {
       const saved = localStorage.getItem('bapu_databases');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed[0]) return parsed[0];
+        if (Array.isArray(parsed) && parsed[0]) return sanitizeDatabase(parsed[0]);
       }
     } catch {}
-    return INITIAL_DATABASES[0] || { id: 'db-empty', name: 'No Connection', type: 'postgres', database: '', isConnected: false, tables: [] };
+    return sanitizeDatabase(INITIAL_DATABASES[0]);
   });
 
   const [environments, setEnvironments] = useState<Environment[]>(() => {
@@ -192,24 +232,26 @@ export const App: React.FC = () => {
   };
 
   const handleAddDatabase = (newDb: DatabaseConnection) => {
+    const cleanDb = sanitizeDatabase(newDb);
     setDatabases(prev => {
-      const exists = prev.some(d => d.id === newDb.id);
+      const exists = prev.some(d => d.id === cleanDb.id);
       if (exists) {
-        return prev.map(d => d.id === newDb.id ? newDb : d);
+        return prev.map(d => d.id === cleanDb.id ? cleanDb : d);
       }
-      return [newDb, ...prev];
+      return [cleanDb, ...prev];
     });
-    setActiveDb(newDb);
+    setActiveDb(cleanDb);
     setActiveTab('db');
-    handleRecordHistory(`Connected: ${newDb.name}`, `${newDb.type.toUpperCase()} • ${newDb.database}`);
+    handleRecordHistory(`Connected: ${cleanDb.name}`, `${cleanDb.type.toUpperCase()} • ${cleanDb.database}`);
   };
 
   const handleUpdateDatabase = (updatedDb: DatabaseConnection) => {
-    setDatabases(prev => prev.map(d => d.id === updatedDb.id ? updatedDb : d));
-    if (activeDb?.id === updatedDb.id) {
-      setActiveDb(updatedDb);
+    const cleanDb = sanitizeDatabase(updatedDb);
+    setDatabases(prev => prev.map(d => d.id === cleanDb.id ? cleanDb : d));
+    if (activeDb?.id === cleanDb.id) {
+      setActiveDb(cleanDb);
     }
-    handleRecordHistory(`Updated DB: ${updatedDb.name}`, `${updatedDb.type.toUpperCase()} • ${updatedDb.database}`);
+    handleRecordHistory(`Updated DB: ${cleanDb.name}`, `${cleanDb.type.toUpperCase()} • ${cleanDb.database}`);
   };
 
   const handleClearHistory = () => {
@@ -514,56 +556,67 @@ export const App: React.FC = () => {
           {/* Active Canvas View */}
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             {activeTab === 'api' && activeRequest && (
-              <ApiStudio
-                activeRequest={activeRequest}
-                activeEnv={activeEnv}
-                onUpdateRequest={handleUpdateRequest}
-                onRecordHistory={handleRecordHistory}
-                onDeleteRequest={handleDeleteRequest}
-                onUpdateEnv={(updatedEnv) => {
-                  setEnvironments(prev => prev.map(e => e.id === updatedEnv.id ? updatedEnv : e));
-                  setActiveEnv(updatedEnv);
-                }}
-              />
+              <ErrorBoundary fallbackTitle="API Studio Encountered an Error">
+                <ApiStudio
+                  activeRequest={activeRequest}
+                  activeEnv={activeEnv}
+                  onUpdateRequest={handleUpdateRequest}
+                  onRecordHistory={handleRecordHistory}
+                  onDeleteRequest={handleDeleteRequest}
+                  onUpdateEnv={(updatedEnv) => {
+                    setEnvironments(prev => prev.map(e => e.id === updatedEnv.id ? updatedEnv : e));
+                    setActiveEnv(updatedEnv);
+                  }}
+                />
+              </ErrorBoundary>
             )}
 
             {activeTab === 'db' && (
-              <DatabaseStudio
-                activeDb={activeDb}
-                onRecordHistory={handleRecordHistory}
-                onRenameDatabase={handleRenameDatabase}
-                onUpdateDatabase={handleUpdateDatabase}
-                onDatabaseLoaded={(newDb) => {
-                  setDatabases(prev => [newDb, ...prev]);
-                  setActiveDb(newDb);
-                  setActiveTab('db');
-                  handleRecordHistory(`Loaded SQLite: ${newDb.database}`, `${newDb.tables.length} tables`);
-                }}
-              />
+              <ErrorBoundary fallbackTitle="Database Studio Encountered an Error">
+                <DatabaseStudio
+                  activeDb={activeDb}
+                  onRecordHistory={handleRecordHistory}
+                  onRenameDatabase={handleRenameDatabase}
+                  onUpdateDatabase={handleUpdateDatabase}
+                  onDatabaseLoaded={(newDb) => {
+                    const cleanDb = sanitizeDatabase(newDb);
+                    setDatabases(prev => [cleanDb, ...prev]);
+                    setActiveDb(cleanDb);
+                    setActiveTab('db');
+                    handleRecordHistory(`Loaded SQLite: ${cleanDb.database}`, `${cleanDb.tables.length} tables`);
+                  }}
+                />
+              </ErrorBoundary>
             )}
 
             {activeTab === 'streams' && (
-              <StreamStudio />
+              <ErrorBoundary fallbackTitle="Stream Studio Encountered an Error">
+                <StreamStudio />
+              </ErrorBoundary>
             )}
 
             {activeTab === 'secrets' && (
-              <SecretsStudio
-                environments={environments}
-                activeEnv={activeEnv}
-                onUpdateEnvironment={(updated) => {
-                  setEnvironments(prev => prev.map(e => e.id === updated.id ? updated : e));
-                  setActiveEnv(updated);
-                }}
-              />
+              <ErrorBoundary fallbackTitle="Secrets Studio Encountered an Error">
+                <SecretsStudio
+                  environments={environments}
+                  activeEnv={activeEnv}
+                  onUpdateEnvironment={(updated) => {
+                    setEnvironments(prev => prev.map(e => e.id === updated.id ? updated : e));
+                    setActiveEnv(updated);
+                  }}
+                />
+              </ErrorBoundary>
             )}
 
             {activeTab === 'history' && (
-              <HistoryStudio
-                history={history}
-                onClearHistory={handleClearHistory}
-                onDeleteHistoryItem={handleDeleteHistoryItem}
-                onReplayItem={handleReplayHistoryItem}
-              />
+              <ErrorBoundary fallbackTitle="History Studio Encountered an Error">
+                <HistoryStudio
+                  history={history}
+                  onClearHistory={handleClearHistory}
+                  onDeleteHistoryItem={handleDeleteHistoryItem}
+                  onReplayItem={handleReplayHistoryItem}
+                />
+              </ErrorBoundary>
             )}
           </div>
         </main>

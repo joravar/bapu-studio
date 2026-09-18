@@ -74,7 +74,7 @@ function createWindow() {
 
 // ------------------------------------------------------------------------------
 // NATIVE DATABASE DRIVER IPC HANDLERS (PostgreSQL, MySQL, MongoDB)
-// Helper to build robust Postgres config with auto SSL and TLS SNI for Neon/Supabase/Cloud DBs
+// Helper to build robust Postgres config with auto SSL, TLS SNI & custom CA / mTLS certificates
 function getPgConfig(config) {
   let host = config.host;
   if (!host && config.connectionString) {
@@ -86,14 +86,27 @@ function getPgConfig(config) {
 
   const isSslNeeded = config.ssl !== false && (
     config.ssl === true || 
+    Boolean(config.sslCaCert || config.sslClientCert) ||
     (config.connectionString && (config.connectionString.includes('sslmode') || config.connectionString.includes('neon.tech') || config.connectionString.includes('supabase') || config.connectionString.includes('aiven') || config.connectionString.includes('render.com') || config.connectionString.includes('aws'))) ||
     (host && !host.includes('localhost') && !host.includes('127.0.0.1'))
   );
 
-  const sslConfig = isSslNeeded ? {
-    rejectUnauthorized: false,
-    servername: host || undefined
-  } : undefined;
+  let sslConfig = undefined;
+  if (isSslNeeded) {
+    sslConfig = {
+      rejectUnauthorized: config.sslRejectUnauthorized !== undefined ? Boolean(config.sslRejectUnauthorized) : (config.sslCaCert ? true : false),
+      servername: host || undefined
+    };
+    if (config.sslCaCert) {
+      sslConfig.ca = config.sslCaCert;
+    }
+    if (config.sslClientCert) {
+      sslConfig.cert = config.sslClientCert;
+    }
+    if (config.sslClientKey) {
+      sslConfig.key = config.sslClientKey;
+    }
+  }
 
   // If a full connection string URI is provided, use it directly with SSL SNI options
   if (config.connectionString) {
@@ -116,35 +129,52 @@ function getPgConfig(config) {
   };
 }
 
+function getMysqlSslConfig(config) {
+  const isSslNeeded = config.ssl === true || Boolean(config.sslCaCert || config.sslClientCert);
+  if (!isSslNeeded) return undefined;
+
+  const ssl = {
+    rejectUnauthorized: config.sslRejectUnauthorized !== undefined ? Boolean(config.sslRejectUnauthorized) : (config.sslCaCert ? true : false)
+  };
+  if (config.sslCaCert) ssl.ca = config.sslCaCert;
+  if (config.sslClientCert) ssl.cert = config.sslClientCert;
+  if (config.sslClientKey) ssl.key = config.sslClientKey;
+  return ssl;
+}
+
 // 1. Test Database Connection
 ipcMain.handle('db:test-connection', async (event, config) => {
   const startTime = Date.now();
   try {
     if (config.type === 'postgres') {
-      const pool = new pg.Pool(getPgConfig(config));
-      const client = await pool.connect();
+      const client = new pg.Client(getPgConfig(config));
+      await client.connect();
       await client.query('SELECT 1');
-      client.release();
-      await pool.end();
+      await client.end();
       const latencyMs = Date.now() - startTime;
       return { success: true, latencyMs, message: `Connected to PostgreSQL successfully (${latencyMs}ms)` };
     }
 
     if (config.type === 'mysql') {
-      const isSslNeeded = config.ssl !== false && (
-        config.ssl === true || 
-        (config.host && !config.host.includes('localhost') && !config.host.includes('127.0.0.1'))
-      );
-
-      const connection = await mysql.createConnection({
-        host: config.host || 'localhost',
-        port: parseInt(config.port, 10) || 3306,
-        database: config.database,
-        user: config.username || 'root',
-        password: config.password || '',
-        connectTimeout: 7000,
-        ssl: isSslNeeded ? { rejectUnauthorized: false } : undefined
-      });
+      const sslConfig = getMysqlSslConfig(config);
+      let connection;
+      if (config.connectionString) {
+        connection = await mysql.createConnection({
+          uri: config.connectionString,
+          connectTimeout: 8000,
+          ssl: sslConfig
+        });
+      } else {
+        connection = await mysql.createConnection({
+          host: config.host || 'localhost',
+          port: parseInt(config.port, 10) || 3306,
+          database: config.database,
+          user: config.username || 'root',
+          password: config.password || '',
+          connectTimeout: 8000,
+          ssl: sslConfig
+        });
+      }
       await connection.query('SELECT 1');
       await connection.end();
       const latencyMs = Date.now() - startTime;
@@ -171,11 +201,11 @@ ipcMain.handle('db:test-connection', async (event, config) => {
   } catch (err) {
     let friendlyMessage = err.message || 'Database connection failed';
     if (err.code === 'ECONNREFUSED' || err.message?.includes('ECONNREFUSED')) {
-      friendlyMessage = `Could not connect to ${config.type?.toUpperCase() || 'Database'} on ${config.host || 'localhost'}:${config.port || 5432} (Connection Refused). No database server is running on this port. Start your local database service or use "⚡ Load Playground".`;
+      friendlyMessage = `Could not connect to ${config.type?.toUpperCase() || 'Database'} on ${config.host || 'localhost'}:${config.port || 5432} (Connection Refused). Verify host address and port.`;
     } else if (err.message?.includes('password authentication failed')) {
       friendlyMessage = `Authentication failed: Incorrect username or password for user "${config.username || 'postgres'}".`;
     } else if (err.code === 'ETIMEDOUT' || err.message?.includes('timeout')) {
-      friendlyMessage = `Connection timed out reaching ${config.host}:${config.port}. Verify server address, port, and firewall rules.`;
+      friendlyMessage = `Connection timed out reaching ${config.host || 'server'}:${config.port || 'port'}. Verify server address, port, and firewall rules.`;
     }
     return { success: false, message: friendlyMessage };
   }
@@ -195,28 +225,48 @@ ipcMain.handle('db:query', async (event, { config, sql }) => {
       const res = await pool.query(sql);
       const executionTimeMs = Date.now() - startTime;
       const columns = res.fields ? res.fields.map(f => f.name) : (res.rows[0] ? Object.keys(res.rows[0]) : []);
-      
+
+      let queryPlan = undefined;
+      if (columns.length === 1 && (columns[0].toLowerCase().includes('plan') || columns[0].toLowerCase().includes('explain'))) {
+        queryPlan = res.rows.map(r => Object.values(r)[0]).join('\n');
+      }
+
       return {
         success: true,
         columns,
         rows: res.rows || [],
         rowCount: res.rowCount ?? (res.rows ? res.rows.length : 0),
-        executionTimeMs
+        executionTimeMs,
+        command: res.command || undefined,
+        queryPlan
       };
     }
 
     if (config.type === 'mysql') {
       let pool = mysqlPools.get(config.id);
       if (!pool) {
-        pool = mysql.createPool({
-          host: config.host || 'localhost',
-          port: parseInt(config.port, 10) || 3306,
-          database: config.database,
-          user: config.username || 'root',
-          password: config.password || '',
-          waitForConnections: true,
-          connectionLimit: 10
-        });
+        const sslConfig = getMysqlSslConfig(config);
+        if (config.connectionString) {
+          pool = mysql.createPool({
+            uri: config.connectionString,
+            waitForConnections: true,
+            connectionLimit: 10,
+            connectTimeout: 8000,
+            ssl: sslConfig
+          });
+        } else {
+          pool = mysql.createPool({
+            host: config.host || 'localhost',
+            port: parseInt(config.port, 10) || 3306,
+            database: config.database,
+            user: config.username || 'root',
+            password: config.password || '',
+            waitForConnections: true,
+            connectionLimit: 10,
+            connectTimeout: 8000,
+            ssl: sslConfig
+          });
+        }
         mysqlPools.set(config.id, pool);
       }
 
@@ -224,12 +274,19 @@ ipcMain.handle('db:query', async (event, { config, sql }) => {
       const executionTimeMs = Date.now() - startTime;
       const columns = fields ? fields.map(f => f.name) : (Array.isArray(rows) && rows[0] ? Object.keys(rows[0]) : []);
 
+      let queryPlan = undefined;
+      if (sql.trim().toUpperCase().startsWith('EXPLAIN')) {
+        queryPlan = JSON.stringify(rows, null, 2);
+      }
+
       return {
         success: true,
         columns,
         rows: Array.isArray(rows) ? rows : [],
         rowCount: Array.isArray(rows) ? rows.length : (rows.affectedRows || 0),
-        executionTimeMs
+        executionTimeMs,
+        command: sql.trim().split(/\s+/)[0]?.toUpperCase(),
+        queryPlan
       };
     }
 
@@ -313,37 +370,75 @@ ipcMain.handle('db:get-schema', async (event, config) => {
     if (config.type === 'postgres') {
       let pool = pgPools.get(config.id);
       if (!pool) {
-        pool = new pg.Pool(getPgConfig(config));
+        if (config.connectionString) {
+          pool = new pg.Pool({
+            connectionString: config.connectionString,
+            ssl: config.ssl !== false ? { rejectUnauthorized: false } : undefined,
+            connectionTimeoutMillis: 10000
+          });
+        } else {
+          pool = new pg.Pool(getPgConfig(config));
+        }
         pgPools.set(config.id, pool);
       }
 
-      const tableRes = await pool.query(`
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        ORDER BY table_name
-        LIMIT 40;
-      `);
+      let tableRes;
+      try {
+        tableRes = await pool.query(`
+          SELECT table_name 
+          FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+            AND table_type = 'BASE TABLE'
+            AND table_name NOT LIKE 'pg_%'
+            AND table_name NOT LIKE 'sql_%'
+          ORDER BY table_name
+          LIMIT 50;
+        `);
+      } catch {
+        tableRes = { rows: [] };
+      }
+
+      if (!tableRes.rows || tableRes.rows.length === 0) {
+        try {
+          tableRes = await pool.query(`
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            ORDER BY table_name
+            LIMIT 40;
+          `);
+        } catch {
+          tableRes = { rows: [] };
+        }
+      }
 
       const tables = [];
-      for (const row of tableRes.rows) {
+      for (const row of (tableRes.rows || [])) {
         const tableName = row.table_name;
-        const colRes = await pool.query(`
-          SELECT column_name, data_type, is_nullable
-          FROM information_schema.columns
-          WHERE table_name = $1 AND table_schema = 'public';
-        `, [tableName]);
+        try {
+          const colRes = await pool.query(`
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns
+            WHERE table_name = $1 AND table_schema = 'public';
+          `, [tableName]);
 
-        tables.push({
-          name: tableName,
-          rowCount: 500,
-          columns: colRes.rows.map(c => ({
-            name: c.column_name,
-            type: c.data_type.toUpperCase(),
-            isPrimaryKey: c.column_name === 'id',
-            isNullable: c.is_nullable === 'YES'
-          }))
-        });
+          tables.push({
+            name: tableName,
+            rowCount: 500,
+            columns: (colRes.rows || []).map(c => ({
+              name: c.column_name,
+              type: (c.data_type || 'VARCHAR').toUpperCase(),
+              isPrimaryKey: c.column_name === 'id',
+              isNullable: c.is_nullable === 'YES'
+            }))
+          });
+        } catch {
+          tables.push({
+            name: tableName,
+            rowCount: 0,
+            columns: [{ name: 'id', type: 'INT', isPrimaryKey: true, isNullable: false }]
+          });
+        }
       }
 
       return { success: true, tables };
@@ -352,25 +447,49 @@ ipcMain.handle('db:get-schema', async (event, config) => {
     if (config.type === 'mysql') {
       let pool = mysqlPools.get(config.id);
       if (!pool) {
-        pool = mysql.createPool({
-          host: config.host || 'localhost',
-          port: parseInt(config.port, 10) || 3306,
-          database: config.database,
-          user: config.username || 'root',
-          password: config.password || '',
-          connectTimeout: 8000
-        });
+        if (config.connectionString) {
+          pool = mysql.createPool({
+            uri: config.connectionString,
+            waitForConnections: true,
+            connectionLimit: 10,
+            connectTimeout: 8000
+          });
+        } else {
+          pool = mysql.createPool({
+            host: config.host || 'localhost',
+            port: parseInt(config.port, 10) || 3306,
+            database: config.database,
+            user: config.username || 'root',
+            password: config.password || '',
+            waitForConnections: true,
+            connectionLimit: 10,
+            connectTimeout: 8000,
+            ssl: config.ssl === true ? { rejectUnauthorized: false } : undefined
+          });
+        }
         mysqlPools.set(config.id, pool);
       }
 
-      // Limit table discovery so huge public databases (like UCSC Genome with 12,000 tables) return instantly
-      const [tableRows] = await pool.query(`SHOW TABLES LIMIT 40`);
-      const tables = [];
+      const dbName = config.database || 'hg38';
+      let tableNames = [];
 
-      for (const row of tableRows) {
-        const tableName = Object.values(row)[0];
+      try {
+        const [tableRows] = await pool.query(
+          'SELECT table_name FROM information_schema.tables WHERE table_schema = ? ORDER BY table_name LIMIT 30;',
+          [dbName]
+        );
+        tableNames = (tableRows || []).map(r => r.TABLE_NAME || r.table_name).filter(Boolean);
+      } catch {
         try {
-          const safeName = tableName.replace(/`/g, '``');
+          const [rawRows] = await pool.query('SHOW TABLES');
+          tableNames = (rawRows || []).slice(0, 30).map(r => Object.values(r)[0]).filter(Boolean);
+        } catch {}
+      }
+
+      const tables = [];
+      for (const tableName of tableNames) {
+        try {
+          const safeName = String(tableName).replace(/`/g, '``');
           const [colRows] = await pool.query(`DESCRIBE \`${safeName}\``);
           tables.push({
             name: tableName,

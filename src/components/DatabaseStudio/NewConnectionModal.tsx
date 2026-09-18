@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Database, Check, Zap, Server, Shield, HardDrive, Link2, Sliders, Sparkles } from 'lucide-react';
 import { DatabaseConnection } from '../../types';
 import { DatabaseService } from '../../services/databaseService';
+import { SAMPLE_PLAYGROUND_DB, SAMPLE_MONGODB_PLAYGROUND_DB } from '../../data/mockData';
 
 interface NewConnectionModalProps {
   isOpen: boolean;
@@ -118,8 +119,14 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
   const [username, setUsername] = useState('postgres');
   const [password, setPassword] = useState('');
   const [ssl, setSsl] = useState(false);
+  const [sslCaCert, setSslCaCert] = useState('');
+  const [sslClientCert, setSslClientCert] = useState('');
+  const [sslClientKey, setSslClientKey] = useState('');
+  const [sslRejectUnauthorized, setSslRejectUnauthorized] = useState(true);
+  const [showAdvancedSsl, setShowAdvancedSsl] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   React.useEffect(() => {
     if (initialConnection) {
@@ -132,6 +139,11 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       setUsername((initialConnection as any).username || '');
       setPassword((initialConnection as any).password || '');
       setSsl((initialConnection as any).ssl !== false);
+      setSslCaCert(initialConnection.sslCaCert || '');
+      setSslClientCert(initialConnection.sslClientCert || '');
+      setSslClientKey(initialConnection.sslClientKey || '');
+      setSslRejectUnauthorized(initialConnection.sslRejectUnauthorized !== false);
+      setShowAdvancedSsl(Boolean(initialConnection.sslCaCert || initialConnection.sslClientCert || initialConnection.sslClientKey));
       setConnectionMode(initialConnection.connectionString ? 'uri' : 'params');
     } else {
       setName('New PostgreSQL Connection');
@@ -143,12 +155,15 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       setUsername('postgres');
       setPassword('');
       setSsl(false);
+      setSslCaCert('');
+      setSslClientCert('');
+      setSslClientKey('');
+      setSslRejectUnauthorized(true);
+      setShowAdvancedSsl(false);
       setConnectionMode('uri');
     }
     setTestResult(null);
   }, [initialConnection, isOpen]);
-
-  if (!isOpen) return null;
 
   const handleUriChange = (val: string) => {
     setConnectionString(val);
@@ -205,26 +220,37 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
     setTestResult(null);
 
     const config = {
-      id: initialConnection?.id || (name.toLowerCase().includes('demo') || name.toLowerCase().includes('playground') ? 'db-demo' : `db-${Date.now()}`),
+      id: initialConnection?.id || `db-${Date.now()}`,
       name: name.trim(),
       type,
-      host,
-      port,
+      host: host.trim() || 'localhost',
+      port: port.trim() || (type === 'postgres' ? '5432' : '3306'),
       database: database.trim() || (type === 'mongodb' ? 'test' : 'postgres'),
-      username,
+      username: username.trim() || '',
       password,
       ssl,
-      connectionString: connectionString.trim() || undefined
+      sslCaCert: sslCaCert.trim() || undefined,
+      sslClientCert: sslClientCert.trim() || undefined,
+      sslClientKey: sslClientKey.trim() || undefined,
+      sslRejectUnauthorized: sslRejectUnauthorized,
+      connectionString: connectionMode === 'uri' && connectionString.trim() ? connectionString.trim() : undefined
     };
 
-    const res = await DatabaseService.testConnection(config);
-    setIsTesting(false);
-    setTestResult(res);
+    try {
+      const res = await DatabaseService.testConnection(config);
+      setTestResult(res);
+    } catch (err: any) {
+      setTestResult({ success: false, message: err.message || 'Connection test failed' });
+    } finally {
+      setIsTesting(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || isSubmitting) return;
+
+    setIsSubmitting(true);
 
     const defaultTable = (database.includes('hg38') || database.includes('genome'))
       ? {
@@ -250,34 +276,37 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       name: name.trim(),
       type,
       database: database.trim() || (type === 'mongodb' ? 'test' : 'main'),
-      connectionString: connectionString.trim() || undefined,
+      connectionString: connectionMode === 'uri' && connectionString.trim() ? connectionString.trim() : undefined,
+      host: host.trim() || 'localhost',
+      port: port.trim() || (type === 'postgres' ? '5432' : '3306'),
+      username: username.trim() || '',
+      password: password || '',
+      ssl: ssl,
+      sslCaCert: sslCaCert.trim() || undefined,
+      sslClientCert: sslClientCert.trim() || undefined,
+      sslClientKey: sslClientKey.trim() || undefined,
+      sslRejectUnauthorized: sslRejectUnauthorized,
       isConnected: true,
       tables: initialConnection?.tables && initialConnection.tables.length > 0 ? initialConnection.tables : [defaultTable]
     };
 
-    // Attach credentials for native drivers
-    (dbConfig as any).host = host;
-    (dbConfig as any).port = port;
-    (dbConfig as any).username = username;
-    (dbConfig as any).password = password;
-    (dbConfig as any).ssl = ssl;
-
-    // Connect immediately so the UI is responsive
-    onConnect(dbConfig);
-    onClose();
-
-    // Fetch schema in background (with timeout protection for massive DBs)
+    // Fast background schema discovery (1.5s timeout)
     try {
       const schemaRes = await Promise.race([
         DatabaseService.fetchSchema(dbConfig),
-        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3500))
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
       ]);
       if (schemaRes?.success && schemaRes.tables?.length > 0) {
         dbConfig.tables = schemaRes.tables;
-        onConnect({ ...dbConfig });
       }
     } catch {}
+
+    setIsSubmitting(false);
+    onConnect(dbConfig);
+    onClose();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -302,7 +331,9 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(59, 130, 246, 0.08))',
+            background: type === 'mongodb' 
+              ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 182, 212, 0.08))'
+              : 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(59, 130, 246, 0.08))',
             border: '1px solid rgba(16, 185, 129, 0.3)',
             borderRadius: 'var(--radius-md)',
             padding: '10px 14px',
@@ -311,66 +342,25 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
           <div>
             <div style={{ fontSize: '12px', fontWeight: 600, color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Sparkles size={13} />
-              <span>No Cloud Database? Use Free Instant Playground</span>
+              <span>{type === 'mongodb' ? 'No Cloud Cluster? Instant MongoDB Playground' : 'No Cloud Database? Instant SQL Playground'}</span>
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>
-              Instantly loads a full demo database with users, workspaces & accounts tables.
+              {type === 'mongodb' 
+                ? 'Loads simulated MongoDB store with products, orders & JSON aggregation.'
+                : 'Loads full demo SQL database with users, workspaces & accounts tables.'}
             </div>
           </div>
 
           <button
             type="button"
             onClick={() => {
-              const demoDb: DatabaseConnection = {
-                id: `db-demo-${Date.now()}`,
-                name: 'Sample SaaS Production DB',
-                type: 'postgres',
-                database: 'saas_production_db',
-                isConnected: true,
-                tables: [
-                  {
-                    name: 'users',
-                    rowCount: 1420,
-                    columns: [
-                      { name: 'id', type: 'VARCHAR(36)', isPrimaryKey: true, isNullable: false },
-                      { name: 'email', type: 'VARCHAR(255)', isPrimaryKey: false, isNullable: false },
-                      { name: 'name', type: 'VARCHAR(100)', isPrimaryKey: false, isNullable: false },
-                      { name: 'role', type: 'VARCHAR(50)', isPrimaryKey: false, isNullable: false },
-                      { name: 'status', type: 'VARCHAR(20)', isPrimaryKey: false, isNullable: false },
-                      { name: 'created_at', type: 'TIMESTAMP', isPrimaryKey: false, isNullable: false }
-                    ]
-                  },
-                  {
-                    name: 'workspaces',
-                    rowCount: 480,
-                    columns: [
-                      { name: 'id', type: 'VARCHAR(36)', isPrimaryKey: true, isNullable: false },
-                      { name: 'name', type: 'VARCHAR(100)', isPrimaryKey: false, isNullable: false },
-                      { name: 'plan_tier', type: 'VARCHAR(50)', isPrimaryKey: false, isNullable: false },
-                      { name: 'storage_mb', type: 'INTEGER', isPrimaryKey: false, isNullable: false },
-                      { name: 'created_at', type: 'DATE', isPrimaryKey: false, isNullable: false }
-                    ]
-                  },
-                  {
-                    name: 'accounts',
-                    rowCount: 890,
-                    columns: [
-                      { name: 'id', type: 'VARCHAR(36)', isPrimaryKey: true, isNullable: false },
-                      { name: 'user_id', type: 'VARCHAR(36)', isPrimaryKey: false, isNullable: false },
-                      { name: 'balance_cents', type: 'BIGINT', isPrimaryKey: false, isNullable: false },
-                      { name: 'currency', type: 'VARCHAR(3)', isPrimaryKey: false, isNullable: false },
-                      { name: 'status', type: 'VARCHAR(20)', isPrimaryKey: false, isNullable: false }
-                    ]
-                  }
-                ]
-              };
-              onConnect(demoDb);
+              onConnect(type === 'mongodb' ? SAMPLE_MONGODB_PLAYGROUND_DB : SAMPLE_PLAYGROUND_DB);
               onClose();
             }}
             className="btn-secondary"
             style={{ borderColor: 'rgba(16, 185, 129, 0.4)', color: '#6ee7b7', padding: '6px 12px', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap' }}
           >
-            ⚡ Load Playground
+            {type === 'mongodb' ? '🍃 Load MongoDB Demo' : '⚡ Load SQL Demo'}
           </button>
         </div>
       )}
@@ -610,20 +600,142 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
               </>
             )}
 
-            {/* SSL / TLS Toggle for Cloud Databases */}
+            {/* SSL / TLS Toggle & Custom CA / mTLS */}
             {type !== 'sqlite' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' }}>
-                <input
-                  type="checkbox"
-                  id="db-ssl-toggle"
-                  checked={ssl}
-                  onChange={(e) => setSsl(e.target.checked)}
-                  style={{ width: '14px', height: '14px', accentColor: '#10b981', cursor: 'pointer' }}
-                />
-                <label htmlFor="db-ssl-toggle" style={{ fontSize: '11px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Shield size={12} color="#10b981" />
-                  <span>Enable SSL / TLS Encryption (Required for Neon, Supabase, Cloud DBs)</span>
-                </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '4px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      id="db-ssl-toggle"
+                      checked={ssl}
+                      onChange={(e) => setSsl(e.target.checked)}
+                      style={{ width: '14px', height: '14px', accentColor: '#10b981', cursor: 'pointer' }}
+                    />
+                    <label htmlFor="db-ssl-toggle" style={{ fontSize: '11px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Shield size={12} color="#10b981" />
+                      <span>Enable SSL / TLS Encryption (Required for Neon, Supabase, Cloud DBs)</span>
+                    </label>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedSsl(!showAdvancedSsl)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: showAdvancedSsl ? '#10b981' : 'var(--text-dim)',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '2px 6px'
+                    }}
+                  >
+                    <span>{showAdvancedSsl ? 'Hide CA / mTLS' : 'Custom CA & mTLS'}</span>
+                    <span style={{ fontSize: '9px' }}>{showAdvancedSsl ? '▲' : '▼'}</span>
+                  </button>
+                </div>
+
+                {/* Advanced SSL Configuration Drawer */}
+                {showAdvancedSsl && (
+                  <div style={{
+                    background: 'rgba(0, 0, 0, 0.25)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <label style={{ fontSize: '11px', fontWeight: 600, color: '#e2e8f0' }}>
+                          Root CA Certificate (PEM format)
+                        </label>
+                        <span style={{ fontSize: '10px', color: 'var(--text-dim)' }}>AWS RDS / Aiven / Corporate CA</span>
+                      </div>
+                      <textarea
+                        value={sslCaCert}
+                        onChange={(e) => setSslCaCert(e.target.value)}
+                        placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                        rows={3}
+                        style={{
+                          width: '100%',
+                          background: 'var(--bg-input)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: 'var(--radius-sm)',
+                          padding: '6px 8px',
+                          color: '#fff',
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '10px',
+                          resize: 'vertical'
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
+                          Client Certificate (mTLS)
+                        </label>
+                        <textarea
+                          value={sslClientCert}
+                          onChange={(e) => setSslClientCert(e.target.value)}
+                          placeholder="Client cert PEM..."
+                          rows={2}
+                          style={{
+                            width: '100%',
+                            background: 'var(--bg-input)',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: 'var(--radius-sm)',
+                            padding: '6px 8px',
+                            color: '#fff',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '10px',
+                            resize: 'vertical'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
+                          Client Private Key (mTLS)
+                        </label>
+                        <textarea
+                          value={sslClientKey}
+                          onChange={(e) => setSslClientKey(e.target.value)}
+                          placeholder="Private key PEM..."
+                          rows={2}
+                          style={{
+                            width: '100%',
+                            background: 'var(--bg-input)',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: 'var(--radius-sm)',
+                            padding: '6px 8px',
+                            color: '#fff',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '10px',
+                            resize: 'vertical'
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <input
+                        type="checkbox"
+                        id="ssl-verify-ca"
+                        checked={sslRejectUnauthorized}
+                        onChange={(e) => setSslRejectUnauthorized(e.target.checked)}
+                        style={{ width: '13px', height: '13px', accentColor: '#10b981', cursor: 'pointer' }}
+                      />
+                      <label htmlFor="ssl-verify-ca" style={{ fontSize: '10px', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                        Strictly verify server certificate against custom CA (Reject Unauthorized)
+                      </label>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

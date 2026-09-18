@@ -12,10 +12,11 @@ export const INITIAL_ENVIRONMENTS: Environment[] = [
 
 export const SAMPLE_PLAYGROUND_DB: DatabaseConnection = {
   id: 'db-playground-analytics',
-  name: 'Local Analytics (Playground)',
+  name: 'Local Analytics (Playground SQL)',
   type: 'postgres',
   database: 'saas_production_db',
   isConnected: true,
+  isDemoDb: true,
   tables: [
     {
       name: 'users',
@@ -48,6 +49,41 @@ export const SAMPLE_PLAYGROUND_DB: DatabaseConnection = {
         { name: 'balance_cents', type: 'BIGINT', isPrimaryKey: false, isNullable: true },
         { name: 'currency', type: 'VARCHAR(10)', isPrimaryKey: false, isNullable: false },
         { name: 'status', type: 'VARCHAR(50)', isPrimaryKey: false, isNullable: true }
+      ]
+    }
+  ]
+};
+
+export const SAMPLE_MONGODB_PLAYGROUND_DB: DatabaseConnection = {
+  id: 'db-playground-mongodb',
+  name: 'Demo MongoDB (E-Commerce)',
+  type: 'mongodb',
+  database: 'store_inventory',
+  isConnected: true,
+  isDemoDb: true,
+  tables: [
+    {
+      name: 'products',
+      rowCount: 320,
+      columns: [
+        { name: '_id', type: 'OBJECTID', isPrimaryKey: true, isNullable: false },
+        { name: 'name', type: 'STRING', isPrimaryKey: false, isNullable: false },
+        { name: 'sku', type: 'STRING', isPrimaryKey: false, isNullable: false },
+        { name: 'price', type: 'DOUBLE', isPrimaryKey: false, isNullable: false },
+        { name: 'inStock', type: 'BOOLEAN', isPrimaryKey: false, isNullable: false },
+        { name: 'category', type: 'STRING', isPrimaryKey: false, isNullable: false },
+        { name: 'tags', type: 'ARRAY', isPrimaryKey: false, isNullable: true }
+      ]
+    },
+    {
+      name: 'orders',
+      rowCount: 145,
+      columns: [
+        { name: '_id', type: 'OBJECTID', isPrimaryKey: true, isNullable: false },
+        { name: 'customer_email', type: 'STRING', isPrimaryKey: false, isNullable: false },
+        { name: 'total', type: 'DOUBLE', isPrimaryKey: false, isNullable: false },
+        { name: 'status', type: 'STRING', isPrimaryKey: false, isNullable: false },
+        { name: 'items_count', type: 'INT', isPrimaryKey: false, isNullable: false }
       ]
     }
   ]

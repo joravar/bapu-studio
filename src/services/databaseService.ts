@@ -7,6 +7,8 @@ export interface SqlQueryResult {
   rowCount: number;
   executionTimeMs: number;
   message?: string;
+  command?: string;
+  queryPlan?: string;
 }
 
 export interface ConnectionTestResult {
@@ -24,13 +26,34 @@ function getBridge(): any {
 }
 
 export const DatabaseService = {
+  wrapExplainQuery(dbType: string, sql: string): string {
+    const trimmed = sql.trim().replace(/;+$/, '');
+    if (trimmed.toUpperCase().startsWith('EXPLAIN')) return sql;
+
+    if (dbType === 'postgres') {
+      return `EXPLAIN (ANALYZE, COSTS, VERBOSE, BUFFERS)\n${trimmed};`;
+    }
+    if (dbType === 'mysql') {
+      return `EXPLAIN FORMAT=JSON\n${trimmed};`;
+    }
+    if (dbType === 'sqlite') {
+      return `EXPLAIN QUERY PLAN\n${trimmed};`;
+    }
+    if (dbType === 'mongodb') {
+      if (trimmed.includes('.find(') || trimmed.includes('.aggregate(')) {
+        return `${trimmed}.explain("executionStats")`;
+      }
+      return trimmed;
+    }
+    return `EXPLAIN ${trimmed};`;
+  },
+
   async testConnection(config: any): Promise<ConnectionTestResult> {
     const isPlayground = Boolean(
-      config.id?.includes('demo') || 
-      config.name?.toLowerCase().includes('demo') || 
-      config.name?.toLowerCase().includes('playground') || 
-      config.name?.toLowerCase().includes('sample') ||
-      (!config.password && !config.connectionString && (config.host === 'localhost' || !config.host) && (config.database === 'saas_production_db' || config.database === 'nexus_core_db' || config.database === 'main'))
+      config.isDemoDb || 
+      config.id === 'db-playground-analytics' || 
+      config.id?.startsWith('db-demo') ||
+      (!config.connectionString && !(config as any).host)
     );
 
     // If testing the built-in demo/playground connection, confirm readiness immediately
@@ -39,7 +62,7 @@ export const DatabaseService = {
       return {
         success: true,
         latencyMs: 1,
-        message: `⚡ Built-in ${config.type ? config.type.toUpperCase() : 'PostgreSQL'} Playground Database is active and ready (1ms)`
+        message: `⚡ Built-in Playground Database is active and ready (1ms)`
       };
     }
 
@@ -63,12 +86,17 @@ export const DatabaseService = {
   },
 
   async executeQuery(db: DatabaseConnection, sql: string): Promise<SqlQueryResult> {
-    const hasRealCredentials = Boolean(db.connectionString || ((db as any).host && !(db as any).host.includes('localhost') && (db as any).password));
-    const isDemoDb = !hasRealCredentials || db.id.includes('demo') || db.id === 'db-main' || db.id === 'db-cache' || db.id === 'db-1' || db.id === 'db-2' || db.name.toLowerCase().includes('demo') || db.name.toLowerCase().includes('sample');
+    const isPlayground = Boolean(
+      db.isDemoDb ||
+      db.id === 'db-playground-analytics' ||
+      db.id?.startsWith('db-demo') ||
+      db.id === 'db-empty' ||
+      (!db.connectionString && !(db as any).host)
+    );
     const bridge = getBridge();
 
-    // If it's a real user-added database with host credentials, run through native IPC driver
-    if (bridge && !isDemoDb && ((db as any).host || db.connectionString)) {
+    // If it's a real user-added database with host or connectionString, ALWAYS execute natively via Electron IPC driver
+    if (bridge && !isPlayground) {
       try {
         const res = await bridge.dbQuery({ config: db, sql });
         return res;
@@ -79,7 +107,7 @@ export const DatabaseService = {
           rows: [],
           rowCount: 0,
           executionTimeMs: 0,
-          message: `Connection Error: ${err.message || 'Could not reach database server'}. Ensure the database is running on the specified host & port.`
+          message: `Connection Error: ${err.message || 'Could not reach database server'}. Ensure the database is reachable.`
         };
       }
     }
@@ -150,6 +178,27 @@ export const DatabaseService = {
       const requestedColsStr = selectMatch ? selectMatch[1].trim() : '*';
       const limitMatch = cleanSql.match(/limit\s+(\d+)/i);
       const limitVal = limitMatch ? parseInt(limitMatch[1], 10) : null;
+
+      // EXPLAIN query plan simulation
+      if (lower.startsWith('explain')) {
+        const planLines = [
+          'Seq Scan on users  (cost=0.00..38.25 rows=1420 width=128) (actual time=0.012..0.450 rows=1420 loops=1)',
+          '  Filter: (status = \'ACTIVE\'::text)',
+          '  Rows Removed by Filter: 85',
+          '  Buffers: shared hit=28',
+          'Planning Time: 0.085 ms',
+          'Execution Time: 0.512 ms'
+        ];
+        return {
+          success: true,
+          columns: ['QUERY PLAN'],
+          rows: planLines.map(line => ({ 'QUERY PLAN': line })),
+          rowCount: planLines.length,
+          executionTimeMs: 9,
+          command: 'EXPLAIN',
+          queryPlan: planLines.join('\n')
+        };
+      }
 
       // JOIN queries between users and accounts
       if (lower.includes('join')) {
@@ -271,19 +320,98 @@ export const DatabaseService = {
       };
     }
 
-    // 2. MongoDB Document queries (JSON or find)
-    if (db.type === 'mongodb' || cleanSql.startsWith('{') || lower.includes('.find(')) {
-      const docs = [
-        { _id: '65cb7891a123f001', name: 'Product Catalog', sku: 'SKU-PRO-99', price: 99.00, inStock: true, tags: ['hardware', 'gadgets'] },
-        { _id: '65cb7891a123f002', name: 'Developer License', sku: 'SKU-SOFT-12', price: 12.00, inStock: true, tags: ['software', 'subscription'] },
-        { _id: '65cb7891a123f003', name: 'Cloud Vault Addon', sku: 'SKU-CLOUD-05', price: 5.00, inStock: true, tags: ['cloud', 'storage'] }
+    // 2. MongoDB Document queries (JSON, find, or aggregate)
+    if (db.type === 'mongodb' || cleanSql.startsWith('{') || lower.includes('.find(') || lower.includes('.aggregate(') || lower.includes('.explain(')) {
+      const isOrders = lower.includes('order');
+      const isAggregate = lower.includes('aggregate') || lower.includes('$group');
+
+      if (lower.includes('.explain(')) {
+        const planJson = JSON.stringify({
+          queryPlanner: {
+            plannerVersion: 1,
+            namespace: `${db.database || 'store_inventory'}.${isOrders ? 'orders' : 'products'}`,
+            winningPlan: {
+              stage: 'COLLSCAN',
+              direction: 'forward'
+            }
+          },
+          executionStats: {
+            executionSuccess: true,
+            nReturned: isOrders ? 5 : 6,
+            executionTimeMillis: 3,
+            totalDocsExamined: isOrders ? 5 : 6
+          }
+        }, null, 2);
+        return {
+          success: true,
+          columns: ['explain_output'],
+          rows: [{ explain_output: planJson }],
+          rowCount: 1,
+          executionTimeMs: 8,
+          command: 'EXPLAIN',
+          queryPlan: planJson
+        };
+      }
+
+      if (isAggregate) {
+        if (isOrders) {
+          return {
+            success: true,
+            columns: ['_id', 'count', 'total_sales'],
+            rows: [
+              { _id: 'completed', count: 112, total_sales: 14850.50 },
+              { _id: 'processing', count: 24, total_sales: 3240.00 },
+              { _id: 'refunded', count: 9, total_sales: 780.00 }
+            ],
+            rowCount: 3,
+            executionTimeMs: 18
+          };
+        }
+        return {
+          success: true,
+          columns: ['_id', 'count'],
+          rows: [
+            { _id: 'hardware', count: 142 },
+            { _id: 'software', count: 98 },
+            { _id: 'cloud', count: 80 }
+          ],
+          rowCount: 3,
+          executionTimeMs: 18
+        };
+      }
+
+      if (isOrders) {
+        const orderDocs = [
+          { _id: '66a1b2c3d4e5f001', customer_email: 'alex.rivera@example.com', total: 149.99, status: 'completed', items_count: 3, created_at: '2026-08-20T10:15:00Z' },
+          { _id: '66a1b2c3d4e5f002', customer_email: 'sarah.connor@example.com', total: 29.50, status: 'completed', items_count: 1, created_at: '2026-08-21T14:22:00Z' },
+          { _id: '66a1b2c3d4e5f003', customer_email: 'elena.rostova@example.com', total: 499.00, status: 'processing', items_count: 5, created_at: '2026-08-22T08:05:00Z' },
+          { _id: '66a1b2c3d4e5f004', customer_email: 'david.kim@example.com', total: 12.00, status: 'completed', items_count: 1, created_at: '2026-08-22T19:40:00Z' },
+          { _id: '66a1b2c3d4e5f005', customer_email: 'priya.sharma@example.com', total: 85.00, status: 'refunded', items_count: 2, created_at: '2026-08-23T06:12:00Z' }
+        ];
+        return {
+          success: true,
+          columns: ['_id', 'customer_email', 'total', 'status', 'items_count', 'created_at'],
+          rows: orderDocs,
+          rowCount: orderDocs.length,
+          executionTimeMs: 14
+        };
+      }
+
+      const productDocs = [
+        { _id: '65cb7891a123f001', name: 'Mechanical RGB Keyboard', sku: 'SKU-KB-RGB', price: 129.99, inStock: true, category: 'hardware', tags: ['gaming', 'usb-c'] },
+        { _id: '65cb7891a123f002', name: 'Studio Pro Wireless Mouse', sku: 'SKU-MS-PRO', price: 79.50, inStock: true, category: 'hardware', tags: ['wireless', 'ergonomic'] },
+        { _id: '65cb7891a123f003', name: 'Bapu Developer License (Annual)', sku: 'SKU-BAPU-DEV', price: 99.00, inStock: true, category: 'software', tags: ['subscription', 'api'] },
+        { _id: '65cb7891a123f004', name: 'Cloud Secrets Vault (100GB)', sku: 'SKU-VAULT-100', price: 15.00, inStock: true, category: 'cloud', tags: ['storage', 'encryption'] },
+        { _id: '65cb7891a123f005', name: '4K Ultra-Wide Monitor 34"', sku: 'SKU-MON-4K34', price: 549.00, inStock: false, category: 'hardware', tags: ['display', 'hdr'] },
+        { _id: '65cb7891a123f006', name: 'USB-C Multiport Hub 8-in-1', sku: 'SKU-HUB-8IN1', price: 45.00, inStock: true, category: 'hardware', tags: ['accessories', '4k'] }
       ];
+
       return {
         success: true,
-        columns: ['_id', 'name', 'sku', 'price', 'inStock', 'tags'],
-        rows: docs,
-        rowCount: docs.length,
-        executionTimeMs: 19
+        columns: ['_id', 'name', 'sku', 'price', 'inStock', 'category', 'tags'],
+        rows: productDocs,
+        rowCount: productDocs.length,
+        executionTimeMs: 14
       };
     }
 
