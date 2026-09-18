@@ -42,6 +42,8 @@ jobs:
         run: npm run build
 
       - name: Build Desktop Binaries
+        id: build_desktop
+        continue-on-error: ${{ matrix.platform == 'macos' }}
         run: npx electron-builder --publish always
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -51,3 +53,12 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Fallback Unsigned Build (macOS)
+        if: ${{ matrix.platform == 'macos' && steps.build_desktop.outcome == 'failure' }}
+        run: npx electron-builder --publish always -c.mac.identity=null
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
