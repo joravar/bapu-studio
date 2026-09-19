@@ -4,14 +4,14 @@
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Bapu Studio CI](https://github.com/joravar/bapu-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/joravar/bapu-studio/actions/workflows/ci.yml)
-[![Release: v1.2.0](https://img.shields.io/badge/Release-v1.2.0-emerald.svg)](https://github.com/joravar/bapu-studio/releases/tag/v1.2.0)
-[![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational.svg)](https://github.com/joravar/bapu-studio/releases/tag/v1.2.0)
+[![Release: v1.2.1](https://img.shields.io/badge/Release-v1.2.1-emerald.svg)](https://github.com/joravar/bapu-studio/releases/tag/v1.2.1)
+[![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational.svg)](https://github.com/joravar/bapu-studio/releases/tag/v1.2.1)
 [![Website](https://img.shields.io/badge/Website-Live-brightgreen.svg)](https://joravar.github.io/bapu-studio/)
 [![Sponsor](https://img.shields.io/badge/GitHub-Sponsor-pink.svg)](https://github.com/sponsors/joravar)
 
 **The honest, lightweight, local-first developer cockpit combining an API Client, Multi-Tab Database Studio, Real-Time Streams, and Secrets Matrix into one seamless desktop application.**
 
-[📦 Downloads](#-downloads) • [✨ New in v1.2.0](#-whats-new-in-v120) • [🌐 Live Website](https://joravar.github.io/bapu-studio/) • [📊 Comparison](#-feature-comparison) • [🏗️ Architecture](#️-architecture--technology-stack) • [🤖 AI Copilot](#-ai-copilot--current-status) • [📡 Stream Studio Status](#-stream-studio--current-status) • [💖 Sponsor](#-support--github-sponsors) • [📄 License](#-license)
+[📦 Downloads](#-downloads) • [✨ New in v1.2.1](#-whats-new-in-v121) • [🌐 Live Website](https://joravar.github.io/bapu-studio/) • [📊 Comparison](#-feature-comparison) • [🏗️ Architecture](#️-architecture--technology-stack) • [🤖 AI Copilot](#-ai-copilot--current-status) • [📡 Stream Studio Status](#-stream-studio--current-status) • [💖 Sponsor](#-support--github-sponsors) • [📄 License](#-license)
 
 </div>
 
@@ -39,13 +39,23 @@ Developers are tired of running several bloated, heavy tools simultaneously just
 
 ## 📦 Downloads
 
-Direct native installer packages are available on [GitHub Releases (v1.2.0)](https://github.com/joravar/bapu-studio/releases/tag/v1.2.0):
+Direct native installer packages are available on [GitHub Releases (v1.2.1)](https://github.com/joravar/bapu-studio/releases/tag/v1.2.1):
 
 | Operating System | Installer Package | Format | Status |
 | :--- | :--- | :--- | :--- |
-| **🍏 macOS (Apple Silicon)** | [**Download macOS DMG**](https://github.com/joravar/bapu-studio/releases/download/v1.2.0/Bapu-Studio-1.2.0-mac-arm64.dmg) <br> [Download macOS Zip](https://github.com/joravar/bapu-studio/releases/download/v1.2.0/Bapu-Studio-1.2.0-mac-arm64.zip) | `.dmg` & `.zip` | ✅ Signed & Notarized by Apple |
-| **🪟 Windows** | [**Download Windows Installer**](https://github.com/joravar/bapu-studio/releases/download/v1.2.0/Bapu-Studio-Setup-1.2.0.exe) <br> [Download Portable .exe](https://github.com/joravar/bapu-studio/releases/download/v1.2.0/Bapu-Studio-Portable-1.2.0.exe) <br> [Download Windows Zip](https://github.com/joravar/bapu-studio/releases/download/v1.2.0/Bapu-Studio-1.2.0-win-x64.zip) | `.exe` (NSIS & Portable) | ✅ Ready to install / run |
-| **🐧 Linux** | [**Download Linux AppImage**](https://github.com/joravar/bapu-studio/releases/download/v1.2.0/Bapu-Studio-1.2.0-linux-x86_64.AppImage) <br> [Download Debian (.deb)](https://github.com/joravar/bapu-studio/releases/download/v1.2.0/Bapu-Studio-1.2.0-linux-amd64.deb) <br> [Download Tarball (.tar.gz)](https://github.com/joravar/bapu-studio/releases/download/v1.2.0/Bapu-Studio-1.2.0-linux-x64.tar.gz) | `.AppImage`, `.deb`, `.tar.gz` | ✅ Ready to run |
+| **🍏 macOS (Apple Silicon)** | [**Download macOS DMG**](https://github.com/joravar/bapu-studio/releases/download/v1.2.1/Bapu-Studio-1.2.1-mac-arm64.dmg) <br> [Download macOS Zip](https://github.com/joravar/bapu-studio/releases/download/v1.2.1/Bapu-Studio-1.2.1-mac-arm64.zip) | `.dmg` & `.zip` | ✅ Signed & Notarized by Apple |
+| **🪟 Windows** | [**Download Windows Installer**](https://github.com/joravar/bapu-studio/releases/download/v1.2.1/Bapu-Studio-Setup-1.2.1.exe) <br> [Download Portable .exe](https://github.com/joravar/bapu-studio/releases/download/v1.2.1/Bapu-Studio-Portable-1.2.1.exe) <br> [Download Windows Zip](https://github.com/joravar/bapu-studio/releases/download/v1.2.1/Bapu-Studio-1.2.1-win-x64.zip) | `.exe` (NSIS & Portable) | ✅ Ready to install / run |
+| **🐧 Linux** | [**Download Linux AppImage**](https://github.com/joravar/bapu-studio/releases/download/v1.2.1/Bapu-Studio-1.2.1-linux-x86_64.AppImage) <br> [Download Debian (.deb)](https://github.com/joravar/bapu-studio/releases/download/v1.2.1/Bapu-Studio-1.2.1-linux-amd64.deb) <br> [Download Tarball (.tar.gz)](https://github.com/joravar/bapu-studio/releases/download/v1.2.1/Bapu-Studio-1.2.1-linux-x64.tar.gz) | `.AppImage`, `.deb`, `.tar.gz` | ✅ Ready to run |
+
+---
+
+## ✨ What's New in v1.2.1
+
+A maintenance release: every dependency brought up to its true current latest, most notably Electron itself, which had drifted 10 majors behind and out of upstream's supported/security-patched range.
+
+* **Electron 34 → 44** — was on a version no longer receiving security patches; now on current stable.
+* **React 18 → 19**, **TypeScript 5.7 → 7.0** (new native compiler), **Vite 6 → 8**, **@vitejs/plugin-react 4 → 6**, **lucide-react 0.475 → 1.47**, plus routine bumps to `mongodb`, `mysql2`, and dev tooling.
+* No feature or behavior changes. Verified via the full test suite, a clean production build, and end-to-end checks against the real packaged Electron app: encrypted-secrets round-trip, the sandboxed script-test-engine isolation, native dialogs, and the real SQLite engine all still behave correctly on the new Electron/Chromium/Node runtime.
 
 ---
 
