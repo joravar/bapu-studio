@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { UploadCloud, FileSpreadsheet, CheckCircle2, Database } from 'lucide-react';
+import { UploadCloud, CheckCircle2, AlertCircle } from 'lucide-react';
 import { DatabaseConnection } from '../../types';
+import { SqliteService } from '../../services/sqliteService';
 
 interface SqliteDropZoneProps {
   onDatabaseLoaded: (db: DatabaseConnection) => void;
@@ -9,6 +10,8 @@ interface SqliteDropZoneProps {
 export const SqliteDropZone: React.FC<SqliteDropZoneProps> = ({ onDatabaseLoaded }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [loadedFileName, setLoadedFileName] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -36,52 +39,29 @@ export const SqliteDropZone: React.FC<SqliteDropZoneProps> = ({ onDatabaseLoaded
     }
   };
 
-  const processFile = (file: File) => {
-    setLoadedFileName(file.name);
+  const processFile = async (file: File) => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      const { id, tables } = await SqliteService.loadFromFile(file);
+      setLoadedFileName(file.name);
 
-    // Mock parsing SQLite file metadata (or reading via Tauri rusqlite / wasm)
-    const newDb: DatabaseConnection = {
-      id: `sqlite-${Date.now()}`,
-      name: `Local SQLite (${file.name})`,
-      type: 'sqlite',
-      database: file.name,
-      isConnected: true,
-      tables: [
-        {
-          name: 'app_settings',
-          rowCount: 48,
-          columns: [
-            { name: 'key', type: 'TEXT', isPrimaryKey: true, isNullable: false },
-            { name: 'value', type: 'TEXT', isPrimaryKey: false, isNullable: true },
-            { name: 'updated_at', type: 'DATETIME', isPrimaryKey: false, isNullable: false }
-          ]
-        },
-        {
-          name: 'local_cache',
-          rowCount: 1250,
-          columns: [
-            { name: 'id', type: 'INTEGER', isPrimaryKey: true, isNullable: false },
-            { name: 'endpoint', type: 'TEXT', isPrimaryKey: false, isNullable: false },
-            { name: 'payload_json', type: 'TEXT', isPrimaryKey: false, isNullable: true },
-            { name: 'expires_at', type: 'DATETIME', isPrimaryKey: false, isNullable: false }
-          ]
-        },
-        {
-          name: 'audit_events',
-          rowCount: 382,
-          columns: [
-            { name: 'id', type: 'INTEGER', isPrimaryKey: true, isNullable: false },
-            { name: 'action', type: 'VARCHAR(50)', isPrimaryKey: false, isNullable: false },
-            { name: 'user_agent', type: 'TEXT', isPrimaryKey: false, isNullable: true },
-            { name: 'timestamp', type: 'DATETIME', isPrimaryKey: false, isNullable: false }
-          ]
-        }
-      ]
-    };
+      const newDb: DatabaseConnection = {
+        id,
+        name: `Local SQLite (${file.name})`,
+        type: 'sqlite',
+        database: file.name,
+        isConnected: true,
+        tables
+      };
 
-    setTimeout(() => {
       onDatabaseLoaded(newDb);
-    }, 400);
+    } catch (err: any) {
+      setError(err.message || 'Failed to open this file as a SQLite database.');
+      setLoadedFileName(null);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -90,7 +70,7 @@ export const SqliteDropZone: React.FC<SqliteDropZoneProps> = ({ onDatabaseLoaded
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       style={{
-        border: `2px dashed ${isDragging ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+        border: `2px dashed ${error ? '#ef4444' : isDragging ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
         background: isDragging ? 'rgba(59, 130, 246, 0.08)' : 'rgba(15, 21, 34, 0.4)',
         borderRadius: 'var(--radius-lg)',
         padding: '24px 16px',
@@ -116,7 +96,14 @@ export const SqliteDropZone: React.FC<SqliteDropZoneProps> = ({ onDatabaseLoaded
       />
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', pointerEvents: 'none' }}>
-        {loadedFileName ? (
+        {error ? (
+          <>
+            <AlertCircle size={24} color="#ef4444" />
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#ef4444' }}>
+              {error}
+            </span>
+          </>
+        ) : loadedFileName ? (
           <>
             <CheckCircle2 size={24} color="#10b981" />
             <span style={{ fontSize: '12px', fontWeight: 600, color: '#10b981' }}>
@@ -127,7 +114,7 @@ export const SqliteDropZone: React.FC<SqliteDropZoneProps> = ({ onDatabaseLoaded
           <>
             <UploadCloud size={24} color={isDragging ? '#3b82f6' : 'var(--text-dim)'} />
             <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main)' }}>
-              Drag & Drop SQLite File (<code>.sqlite</code> / <code>.db</code>)
+              {isLoading ? 'Reading database...' : (<>Drag & Drop SQLite File (<code>.sqlite</code> / <code>.db</code>)</>)}
             </div>
             <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
               Zero setup required. Inspect tables and run queries instantly.

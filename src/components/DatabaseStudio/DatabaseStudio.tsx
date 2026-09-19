@@ -44,6 +44,29 @@ interface QueryResult {
   command?: string;
 }
 
+// Redis has no tables/SELECT — the schema browser groups sample keys by TYPE into pseudo-tables
+// (table.name is the Redis type, e.g. "hash"), so clicking one should run the command that type
+// actually supports, seeded with a real sample key so the click shows real data immediately.
+function getDefaultQueryForTable(dbType: string, table: TableSchema): string {
+  if (dbType === 'mongodb') {
+    return `${table.name}.find({})`;
+  }
+  if (dbType === 'redis') {
+    const sampleKey = table.columns[0]?.name;
+    if (!sampleKey) return 'SCAN 0 MATCH * COUNT 25';
+    switch (table.name) {
+      case 'string': return `GET ${sampleKey}`;
+      case 'hash': return `HGETALL ${sampleKey}`;
+      case 'list': return `LRANGE ${sampleKey} 0 24`;
+      case 'set': return `SMEMBERS ${sampleKey}`;
+      case 'zset': return `ZRANGE ${sampleKey} 0 24 WITHSCORES`;
+      case 'stream': return `XRANGE ${sampleKey} - +`;
+      default: return `TYPE ${sampleKey}`;
+    }
+  }
+  return `SELECT * FROM ${table.name} LIMIT 25;`;
+}
+
 export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
   activeDb,
   onRecordHistory,
@@ -163,9 +186,7 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
     const firstTable = safeTables.find(t => !t.name.startsWith('pg_') && !t.name.startsWith('sql_')) || safeTables[0];
     if (firstTable && safeDb.id !== 'db-empty') {
       setSelectedTable(firstTable);
-      const query = safeDb.type === 'mongodb' 
-        ? `${firstTable.name}.find({})` 
-        : `SELECT * FROM ${firstTable.name} LIMIT 15;`;
+      const query = getDefaultQueryForTable(safeDb.type, firstTable);
 
       // Set initial query on active tab
       setSqlQuery(query);
@@ -427,9 +448,7 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
               <div
                 onClick={() => {
                   setSelectedTable(table);
-                  const query = safeDb.type === 'mongodb' 
-                    ? `${table.name}.find({})` 
-                    : `SELECT * FROM ${table.name} LIMIT 25;`;
+                  const query = getDefaultQueryForTable(safeDb.type, table);
                   setSqlQuery(query);
                   handleExecuteSql(query);
                 }}
@@ -627,8 +646,10 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
             }}
             className="code-textarea"
             spellCheck={false}
-            placeholder={activeDb.type === 'mongodb' 
+            placeholder={activeDb.type === 'mongodb'
               ? 'Write MongoDB JSON query or MQL (e.g. { "status": "active" } or users.find({})) • Highlight query & press Ctrl+Enter to run selection'
+              : activeDb.type === 'redis'
+              ? 'Write a Redis command (e.g. GET mykey, HGETALL user:1, KEYS *) • Highlight query & press Ctrl+Enter to run selection'
               : 'Write SQL query here... (e.g. SELECT * FROM table;) • Highlight query & press Ctrl+Enter to run selection'}
           />
 

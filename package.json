@@ -1,7 +1,7 @@
 {
   "name": "bapu-studio",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
   "main": "electron-main.cjs",
   "description": "The honest, open-source, local-first developer cockpit for APIs, Databases, and Secrets.",
@@ -10,27 +10,36 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "node scripts/run-all-tests.mjs",
+    "test:postgres": "node scripts/test-postgres-integration.mjs",
+    "test:mysql": "node scripts/test-mysql-integration.mjs",
+    "test:mongodb": "node scripts/test-mongodb-integration.mjs",
     "desktop": "concurrently \"vite\" \"wait-on tcp:3000 && electron .\"",
     "dist": "npm run build && electron-builder --win",
     "dist:all": "npm run build && electron-builder -mwl"
   },
   "dependencies": {
+    "ioredis": "^6.0.0",
     "lucide-react": "^0.475.0",
     "mongodb": "^7.5.0",
     "mysql2": "^3.23.3",
     "pg": "^8.23.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "sql.js": "^1.14.2"
+    "sql.js": "^1.14.2",
+    "ssh2": "^1.17.0"
   },
   "devDependencies": {
     "@types/pg": "^8.21.0",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
+    "@types/sql.js": "^1.4.11",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
     "electron": "^34.2.0",
     "electron-builder": "^26.16.1",
+    "embedded-postgres": "^18.4.0-beta.17",
+    "mongodb-memory-server": "^11.2.0",
+    "mysql-memory-server": "^1.16.0",
     "typescript": "^5.7.3",
     "vite": "^6.1.0",
     "wait-on": "^8.0.2"

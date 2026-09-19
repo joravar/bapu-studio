@@ -80,6 +80,13 @@ export interface DatabaseConnection {
   sslClientCert?: string;
   sslClientKey?: string;
   sslRejectUnauthorized?: boolean;
+  sshEnabled?: boolean;
+  sshHost?: string;
+  sshPort?: string;
+  sshUsername?: string;
+  sshPassword?: string;
+  sshPrivateKey?: string;
+  sshPassphrase?: string;
   isConnected: boolean;
   isDemoDb?: boolean;
   tables: TableSchema[];
@@ -122,4 +129,7 @@ export interface Collection {
   id: string;
   name: string;
   requests: ApiRequest[];
+  // When set, this collection's requests are mirrored to plain JSON files under this folder
+  // (one file per request, git-diffable) so they can be committed and reviewed like code.
+  folderPath?: string;
 }

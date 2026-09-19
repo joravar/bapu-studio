@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Database, Check, Zap, Server, Shield, HardDrive, Link2, Sliders, Sparkles } from 'lucide-react';
+import { X, Database, Check, Zap, Server, Shield, HardDrive, Link2, Sliders, Sparkles, Terminal, KeyRound } from 'lucide-react';
 import { DatabaseConnection } from '../../types';
 import { DatabaseService } from '../../services/databaseService';
 import { SAMPLE_PLAYGROUND_DB, SAMPLE_MONGODB_PLAYGROUND_DB } from '../../data/mockData';
@@ -124,6 +124,14 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
   const [sslClientKey, setSslClientKey] = useState('');
   const [sslRejectUnauthorized, setSslRejectUnauthorized] = useState(true);
   const [showAdvancedSsl, setShowAdvancedSsl] = useState(false);
+  const [sshEnabled, setSshEnabled] = useState(false);
+  const [sshHost, setSshHost] = useState('');
+  const [sshPort, setSshPort] = useState('22');
+  const [sshUsername, setSshUsername] = useState('');
+  const [sshAuthMode, setSshAuthMode] = useState<'password' | 'key'>('key');
+  const [sshPassword, setSshPassword] = useState('');
+  const [sshPrivateKey, setSshPrivateKey] = useState('');
+  const [sshPassphrase, setSshPassphrase] = useState('');
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -145,6 +153,14 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       setSslRejectUnauthorized(initialConnection.sslRejectUnauthorized !== false);
       setShowAdvancedSsl(Boolean(initialConnection.sslCaCert || initialConnection.sslClientCert || initialConnection.sslClientKey));
       setConnectionMode(initialConnection.connectionString ? 'uri' : 'params');
+      setSshEnabled(Boolean(initialConnection.sshEnabled));
+      setSshHost(initialConnection.sshHost || '');
+      setSshPort(initialConnection.sshPort || '22');
+      setSshUsername(initialConnection.sshUsername || '');
+      setSshAuthMode(initialConnection.sshPrivateKey ? 'key' : 'password');
+      setSshPassword(initialConnection.sshPassword || '');
+      setSshPrivateKey(initialConnection.sshPrivateKey || '');
+      setSshPassphrase(initialConnection.sshPassphrase || '');
     } else {
       setName('New PostgreSQL Connection');
       setType('postgres');
@@ -161,6 +177,14 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       setSslRejectUnauthorized(true);
       setShowAdvancedSsl(false);
       setConnectionMode('uri');
+      setSshEnabled(false);
+      setSshHost('');
+      setSshPort('22');
+      setSshUsername('');
+      setSshAuthMode('key');
+      setSshPassword('');
+      setSshPrivateKey('');
+      setSshPassphrase('');
     }
     setTestResult(null);
   }, [initialConnection, isOpen]);
@@ -210,7 +234,10 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
     } else if (newType === 'redis') {
       setName('Redis Cache');
       setPort('6379');
+      setUsername('');
+      setPassword('');
       setDatabase('0');
+      setSsl(false);
     }
     setTestResult(null);
   };
@@ -233,7 +260,14 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       sslClientCert: sslClientCert.trim() || undefined,
       sslClientKey: sslClientKey.trim() || undefined,
       sslRejectUnauthorized: sslRejectUnauthorized,
-      connectionString: connectionMode === 'uri' && connectionString.trim() ? connectionString.trim() : undefined
+      connectionString: connectionMode === 'uri' && connectionString.trim() ? connectionString.trim() : undefined,
+      sshEnabled: connectionMode === 'params' && sshEnabled,
+      sshHost: sshHost.trim() || undefined,
+      sshPort: sshPort.trim() || '22',
+      sshUsername: sshUsername.trim() || undefined,
+      sshPassword: sshAuthMode === 'password' ? sshPassword : undefined,
+      sshPrivateKey: sshAuthMode === 'key' ? sshPrivateKey.trim() || undefined : undefined,
+      sshPassphrase: sshAuthMode === 'key' ? sshPassphrase || undefined : undefined
     };
 
     try {
@@ -286,6 +320,13 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       sslClientCert: sslClientCert.trim() || undefined,
       sslClientKey: sslClientKey.trim() || undefined,
       sslRejectUnauthorized: sslRejectUnauthorized,
+      sshEnabled: connectionMode === 'params' && sshEnabled,
+      sshHost: sshHost.trim() || undefined,
+      sshPort: sshPort.trim() || '22',
+      sshUsername: sshUsername.trim() || undefined,
+      sshPassword: sshAuthMode === 'password' ? sshPassword : undefined,
+      sshPrivateKey: sshAuthMode === 'key' ? sshPrivateKey.trim() || undefined : undefined,
+      sshPassphrase: sshAuthMode === 'key' ? sshPassphrase || undefined : undefined,
       isConnected: true,
       tables: initialConnection?.tables && initialConnection.tables.length > 0 ? initialConnection.tables : [defaultTable]
     };
@@ -734,6 +775,202 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                         Strictly verify server certificate against custom CA (Reject Unauthorized)
                       </label>
                     </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SSH Tunnel (Bastion Host) — only applies to discrete host/port connections */}
+            {type !== 'sqlite' && connectionMode === 'params' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '4px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="checkbox"
+                    id="ssh-tunnel-toggle"
+                    checked={sshEnabled}
+                    onChange={(e) => setSshEnabled(e.target.checked)}
+                    style={{ width: '14px', height: '14px', accentColor: '#60a5fa', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="ssh-tunnel-toggle" style={{ fontSize: '11px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Terminal size={12} color="#60a5fa" />
+                    <span>Connect via SSH Tunnel (Bastion Host)</span>
+                  </label>
+                </div>
+
+                {sshEnabled && (
+                  <div style={{
+                    background: 'rgba(0, 0, 0, 0.25)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
+                    <div style={{ fontSize: '10px', color: 'var(--text-dim)' }}>
+                      Bapu Studio will connect to this SSH server first, then forward the database connection above through it —
+                      useful when the database is only reachable from inside a private network.
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
+                          SSH Host
+                        </label>
+                        <input
+                          type="text"
+                          value={sshHost}
+                          onChange={(e) => setSshHost(e.target.value)}
+                          placeholder="bastion.example.com"
+                          className="url-input"
+                          style={{
+                            width: '100%',
+                            background: 'var(--bg-input)',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: 'var(--radius-sm)',
+                            padding: '6px 8px',
+                            color: '#fff',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '11px'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
+                          SSH Port
+                        </label>
+                        <input
+                          type="text"
+                          value={sshPort}
+                          onChange={(e) => setSshPort(e.target.value)}
+                          placeholder="22"
+                          className="url-input"
+                          style={{
+                            width: '100%',
+                            background: 'var(--bg-input)',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: 'var(--radius-sm)',
+                            padding: '6px 8px',
+                            color: '#fff',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '11px'
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
+                        SSH Username
+                      </label>
+                      <input
+                        type="text"
+                        value={sshUsername}
+                        onChange={(e) => setSshUsername(e.target.value)}
+                        placeholder="ubuntu"
+                        className="url-input"
+                        style={{
+                          width: '100%',
+                          background: 'var(--bg-input)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: 'var(--radius-sm)',
+                          padding: '6px 8px',
+                          color: '#fff',
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '11px'
+                        }}
+                      />
+                    </div>
+
+                    {/* Auth Method Tabs: Private Key vs Password */}
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setSshAuthMode('key')}
+                        className={`subtab-btn ${sshAuthMode === 'key' ? 'active' : ''}`}
+                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '5px', fontSize: '11px' }}
+                      >
+                        <KeyRound size={11} />
+                        <span>Private Key</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSshAuthMode('password')}
+                        className={`subtab-btn ${sshAuthMode === 'password' ? 'active' : ''}`}
+                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '5px', fontSize: '11px' }}
+                      >
+                        <Shield size={11} />
+                        <span>Password</span>
+                      </button>
+                    </div>
+
+                    {sshAuthMode === 'key' ? (
+                      <>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
+                            SSH Private Key (PEM format)
+                          </label>
+                          <textarea
+                            value={sshPrivateKey}
+                            onChange={(e) => setSshPrivateKey(e.target.value)}
+                            placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
+                            rows={3}
+                            style={{
+                              width: '100%',
+                              background: 'var(--bg-input)',
+                              border: '1px solid var(--border-subtle)',
+                              borderRadius: 'var(--radius-sm)',
+                              padding: '6px 8px',
+                              color: '#fff',
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: '10px',
+                              resize: 'vertical'
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
+                            Private Key Passphrase (if encrypted)
+                          </label>
+                          <input
+                            type="password"
+                            value={sshPassphrase}
+                            onChange={(e) => setSshPassphrase(e.target.value)}
+                            placeholder="Leave blank if the key has no passphrase"
+                            className="url-input"
+                            style={{
+                              width: '100%',
+                              background: 'var(--bg-input)',
+                              border: '1px solid var(--border-subtle)',
+                              borderRadius: 'var(--radius-sm)',
+                              padding: '6px 8px',
+                              color: '#fff'
+                            }}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
+                          SSH Password
+                        </label>
+                        <input
+                          type="password"
+                          value={sshPassword}
+                          onChange={(e) => setSshPassword(e.target.value)}
+                          placeholder="••••••••••••"
+                          className="url-input"
+                          style={{
+                            width: '100%',
+                            background: 'var(--bg-input)',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: 'var(--radius-sm)',
+                            padding: '6px 8px',
+                            color: '#fff'
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

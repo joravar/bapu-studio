@@ -529,8 +529,10 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 36px;
-  padding: 0 12px;
+  flex-wrap: wrap;
+  row-gap: 4px;
+  min-height: 36px;
+  padding: 6px 12px;
   background-color: rgba(15, 21, 34, 0.6);
   border-bottom: 1px solid var(--border-subtle);
 }
@@ -626,6 +628,8 @@ html, body, #root {
   gap: 12px;
   font-size: 12px;
   font-family: var(--font-mono);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .status-badge {
@@ -635,6 +639,7 @@ html, body, #root {
   background: rgba(16, 185, 129, 0.15);
   color: #10b981;
   border: 1px solid rgba(16, 185, 129, 0.3);
+  white-space: nowrap;
 }
 
 .meta-metric {

@@ -20,7 +20,9 @@ import {
   Settings,
   Play,
   Copy,
-  Check
+  Check,
+  FolderGit2,
+  FolderInput
 } from 'lucide-react';
 import { Collection, ApiRequest, DatabaseConnection, HistoryItem, Environment, KeyValuePair } from '../types';
 
@@ -49,6 +51,9 @@ interface SidebarProps {
   onReorderRequests?: (collectionId: string, sourceIndex: number, destIndex: number) => void;
   onMoveRequest?: (sourceColId: string, destColId: string, sourceIndex: number, destIndex: number) => void;
   onImportCollection?: (collection: Collection) => void;
+  onLinkCollectionFolder?: (collectionId: string) => void;
+  onUnlinkCollectionFolder?: (collectionId: string) => void;
+  onLoadCollectionFromFolder?: () => void;
   databases: DatabaseConnection[];
   activeDb: DatabaseConnection | null;
   onSelectDb: (db: DatabaseConnection) => void;
@@ -86,6 +91,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onReorderRequests,
   onMoveRequest,
   onImportCollection,
+  onLinkCollectionFolder,
+  onUnlinkCollectionFolder,
+  onLoadCollectionFromFolder,
   databases,
   activeDb,
   onSelectDb,
@@ -205,8 +213,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 >
                   <FolderDown size={14} color="#38bdf8" />
                 </button>
-                <button 
-                  onClick={onNewRequest} 
+                {onLoadCollectionFromFolder && (
+                  <button
+                    onClick={onLoadCollectionFromFolder}
+                    className="sidebar-action-btn"
+                    title="Load Collection from a linked Folder (git-friendly JSON files)"
+                  >
+                    <FolderInput size={14} color="#a855f7" />
+                  </button>
+                )}
+                <button
+                  onClick={onNewRequest}
                   className="sidebar-action-btn" 
                   title="New HTTP Request"
                 >
@@ -356,6 +373,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       >
                         <Download size={11} color="#10b981" />
                       </button>
+                      {(onLinkCollectionFolder || onUnlinkCollectionFolder) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (col.folderPath) {
+                              if (confirm(`Unlink "${col.name}" from:\n${col.folderPath}\n\nFiles already on disk are left as-is.`)) {
+                                onUnlinkCollectionFolder?.(col.id);
+                              }
+                            } else {
+                              onLinkCollectionFolder?.(col.id);
+                            }
+                          }}
+                          className="sidebar-action-btn"
+                          title={col.folderPath
+                            ? `Linked to folder: ${col.folderPath} (click to unlink)`
+                            : `Link "${col.name}" to a folder as git-friendly JSON files`}
+                        >
+                          <FolderGit2 size={11} color={col.folderPath ? '#22c55e' : 'var(--text-dim)'} />
+                        </button>
+                      )}
                       <button
                         onClick={() => onNewRequestInCollection(col.id)}
                         className="sidebar-action-btn"

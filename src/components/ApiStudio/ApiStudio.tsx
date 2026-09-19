@@ -33,6 +33,19 @@ interface ApiStudioProps {
 type SubTab = 'params' | 'headers' | 'body' | 'auth' | 'prerequest' | 'tests';
 type ResponseSubTab = 'preview' | 'raw' | 'headers' | 'tests' | 'console';
 
+function getStatusBadgeStyle(status: number): React.CSSProperties {
+  const color =
+    status >= 200 && status < 300 ? '#10b981' :
+    status >= 300 && status < 400 ? '#06b6d4' :
+    status >= 400 && status < 500 ? '#f59e0b' :
+    '#ef4444'; // 5xx and 0 (network/validation errors)
+  return {
+    background: `${color}26`,
+    color,
+    borderColor: `${color}4d`
+  };
+}
+
 export const ApiStudio: React.FC<ApiStudioProps> = ({
   activeRequest,
   activeEnv,
@@ -137,7 +150,7 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
     let currentEnv = { ...activeEnv };
     let preLogs: string[] = [];
     if (activeRequest.preRequestScript) {
-      const preResult = executePreRequestScript(activeRequest.preRequestScript, activeRequest, currentEnv);
+      const preResult = await executePreRequestScript(activeRequest.preRequestScript, activeRequest, currentEnv);
       preLogs = preResult.logs;
       if (Object.keys(preResult.updatedEnvVars).length > 0) {
         const newVars = [...currentEnv.variables];
@@ -163,6 +176,25 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
     }
 
     const resolvedUrl = resolveVariables(activeRequest.url, currentEnv);
+
+    if (!resolvedUrl.trim() || !/^https?:\/\//i.test(resolvedUrl.trim())) {
+      setResponse({
+        status: 0,
+        statusText: 'Invalid URL',
+        timeMs: 0,
+        sizeBytes: 0,
+        headers: {},
+        data: {
+          error: true,
+          message: !resolvedUrl.trim()
+            ? 'Enter a request URL before sending (e.g. https://api.example.com/v1/users).'
+            : `"${resolvedUrl}" is not a valid URL — it must start with http:// or https://.`
+        },
+        timestamp: new Date().toISOString()
+      });
+      setIsLoading(false);
+      return;
+    }
 
     // 2. Prepare headers & body
     const reqHeaders: Record<string, string> = {};
@@ -227,59 +259,15 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
         } catch {
           responseData = text;
         }
-
-        // If public sandbox endpoint fails due to remote server rate limits or strict credentials, auto-populate sandbox auth payload
-        if (status >= 400 && (resolvedUrl.includes('dummyjson') || resolvedUrl.includes('reqres') || resolvedUrl.includes('login') || resolvedUrl.includes('auth'))) {
-          status = 200;
-          statusText = '200 OK (Sandbox Active)';
-          responseData = {
-            token: 'EXAMPLE_TOKEN_REPLACE_ME',
-            accessToken: 'EXAMPLE_ACCESS_TOKEN_REPLACE_ME',
-            id: 15,
-            username: 'emilys',
-            email: 'emily.johnson@x.dummyjson.com',
-            user: { id: 'usr_8821', name: 'Emily Johnson' },
-            message: 'Sandbox token generated successfully'
-          };
-        }
       } catch (fetchErr: any) {
-        // Fallback simulation for sandbox testing or CORS-restricted browser calls
-        if ((resolvedUrl.includes('reqres.in') || resolvedUrl.includes('dummyjson') || resolvedUrl.includes('auth') || resolvedUrl.includes('login'))) {
-          responseData = {
-            token: 'EXAMPLE_TOKEN_REPLACE_ME',
-            accessToken: 'EXAMPLE_ACCESS_TOKEN_REPLACE_ME',
-            id: 15,
-            username: 'emilys',
-            email: 'emily.johnson@x.dummyjson.com',
-            user: { id: 'usr_8821', name: 'Emily Johnson' }
-          };
-          status = 200;
-          statusText = '200 OK (Sandbox Active)';
-        } else {
-          responseData = {
-            message: `Successfully executed ${activeRequest.method} on ${resolvedUrl}`,
-            timestamp: new Date().toISOString(),
-            request_details: {
-              method: activeRequest.method,
-              resolved_url: resolvedUrl,
-              environment: currentEnv.name,
-              headers_sent: Object.keys(reqHeaders).length
-            }
-          };
-          if (resolvedBody) {
-            try {
-              responseData.payload_received = JSON.parse(resolvedBody);
-            } catch {
-              responseData.payload_received = resolvedBody;
-            }
-          }
-        }
-
-        responseHeaders = {
-          'content-type': 'application/json',
-          'access-control-allow-origin': '*',
-          'x-powered-by': 'Bapu-Studio-Engine'
+        // Real network/DNS/CORS failure — surface it honestly instead of faking a 200.
+        status = 0;
+        statusText = 'Network Error';
+        responseData = {
+          error: true,
+          message: fetchErr?.message || 'The request could not be completed. Verify the URL, network connection, and CORS configuration.'
         };
+        responseHeaders = {};
         sizeBytes = JSON.stringify(responseData).length;
       }
 
@@ -297,7 +285,7 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
       };
 
       // 3. Execute Post-response Test script
-      const testExec = executeTestScript(
+      const testExec = await executeTestScript(
         activeRequest.testScript || activeRequest.tests || '',
         apiResponse,
         activeRequest,
@@ -1055,7 +1043,7 @@ export const ApiStudio: React.FC<ApiStudioProps> = ({
 
             {response && (
               <div className="response-meta-bar">
-                <span className="status-badge">{response.status} {response.statusText}</span>
+                <span className="status-badge" style={getStatusBadgeStyle(response.status)}>{response.status} {response.statusText}</span>
                 <span className="meta-metric"><Clock size={11} style={{ display: 'inline', marginRight: '3px' }} /><span>{response.timeMs} ms</span></span>
                 <span className="meta-metric"><ArrowDownToLine size={11} style={{ display: 'inline', marginRight: '3px' }} /><span>{(response.sizeBytes / 1024).toFixed(2)} KB</span></span>
                 <button onClick={handleCopy} className="sidebar-action-btn" title="Copy Response Body">

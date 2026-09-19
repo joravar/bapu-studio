@@ -1,28 +1,27 @@
 import React from 'react';
-import { 
-  Zap, 
-  ChevronDown, 
-  Heart, 
-  GitBranch, 
-  Search, 
-  Minus, 
-  Square, 
-  X,
-  ShieldCheck
+import {
+  Zap,
+  ChevronDown,
+  Heart,
+  FolderOpen,
+  Search
 } from 'lucide-react';
-import { Environment } from '../types';
+import { Collection, Environment } from '../types';
 
 interface HeaderProps {
   environments: Environment[];
   activeEnv: Environment;
   onSelectEnv: (env: Environment) => void;
+  collections: Collection[];
 }
 
 export const Header: React.FC<HeaderProps> = ({
   environments,
   activeEnv,
-  onSelectEnv
+  onSelectEnv,
+  collections
 }) => {
+  const requestCount = collections.reduce((sum, c) => sum + c.requests.length, 0);
   return (
     <header className="nexus-header">
       {/* Left: Brand Identity & Git Status */}
@@ -38,9 +37,11 @@ export const Header: React.FC<HeaderProps> = ({
         <div style={{ width: '1px', height: '16px', background: 'var(--border-subtle)' }} />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-dim)', fontSize: '11px' }}>
-          <GitBranch size={13} color="#10b981" />
-          <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>main</span>
-          <span style={{ color: 'var(--text-dim)' }}>(3 collections synced)</span>
+          <FolderOpen size={13} color="#10b981" />
+          <span style={{ color: 'var(--text-muted)' }}>
+            {collections.length} collection{collections.length !== 1 ? 's' : ''}
+          </span>
+          <span style={{ color: 'var(--text-dim)' }}>({requestCount} request{requestCount !== 1 ? 's' : ''})</span>
         </div>
       </div>
 
@@ -121,18 +122,6 @@ export const Header: React.FC<HeaderProps> = ({
           <Heart size={12} fill="#ec4899" color="#ec4899" />
           <span>Sponsor</span>
         </a>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '8px' }}>
-          <button className="sidebar-action-btn" title="Minimize Window">
-            <Minus size={12} />
-          </button>
-          <button className="sidebar-action-btn" title="Maximize Window">
-            <Square size={10} />
-          </button>
-          <button className="sidebar-action-btn" title="Close Window">
-            <X size={12} />
-          </button>
-        </div>
       </div>
     </header>
   );

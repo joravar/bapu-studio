@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Radio, 
-  Send, 
-  Play, 
-  Square, 
-  Sparkles, 
-  Clock, 
-  ArrowUpRight, 
-  ArrowDownLeft, 
-  Trash2,
-  Bot
+import {
+  Radio,
+  Send,
+  Play,
+  Square,
+  Clock,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Trash2
 } from 'lucide-react';
 
 interface StreamMessage {
@@ -24,6 +22,7 @@ export const StreamStudio: React.FC = () => {
   const [streamType, setStreamType] = useState<'sse' | 'ws'>('sse');
   const [url, setUrl] = useState('https://api.example.com/v1/chat/completions/stream');
   const [isConnected, setIsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [outMessage, setOutMessage] = useState('{"type": "subscribe", "channel": "live_feed"}');
   const [messages, setMessages] = useState<StreamMessage[]>([
     {
@@ -34,96 +33,147 @@ export const StreamStudio: React.FC = () => {
     }
   ]);
 
-  const intervalRef = useRef<any>(null);
+  const esRef = useRef<EventSource | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const connectStartRef = useRef<number>(0);
+
+  const addMessage = (type: StreamMessage['type'], content: string, latencyMs?: number) => {
+    setMessages(prev => [
+      ...prev,
+      {
+        id: `m-${Date.now()}-${Math.random()}`,
+        type,
+        content,
+        timestamp: new Date().toLocaleTimeString(),
+        latencyMs
+      }
+    ]);
+  };
+
+  const closeActiveConnection = () => {
+    if (esRef.current) {
+      esRef.current.close();
+      esRef.current = null;
+    }
+    if (wsRef.current) {
+      wsRef.current.onclose = null;
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    setIsConnected(false);
+    setIsConnecting(false);
+  };
 
   const handleToggleConnect = () => {
-    if (isConnected) {
-      setIsConnected(false);
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `m-${Date.now()}`,
-          type: 'system',
-          content: 'Disconnected from stream.',
-          timestamp: new Date().toLocaleTimeString()
-        }
-      ]);
-    } else {
-      setIsConnected(true);
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `m-${Date.now()}`,
-          type: 'system',
-          content: `Connected to ${url} (${streamType.toUpperCase()})`,
-          timestamp: new Date().toLocaleTimeString()
-        }
-      ]);
+    if (isConnected || isConnecting) {
+      closeActiveConnection();
+      addMessage('system', 'Disconnected from stream.');
+      return;
+    }
 
-      if (streamType === 'sse') {
-        // Simulate real-time token stream (like OpenAI/Claude streaming tokens)
-        const tokens = [
-          "Hello! ", "I ", "am ", "streaming ", "tokens ", "in ", "real-time ", "directly ", 
-          "into ", "Bapu ", "Studio. ", "Zero ", "latency ", "and ", "100% ", "offline ", "privacy!"
-        ];
-        let idx = 0;
-        intervalRef.current = setInterval(() => {
-          if (idx < tokens.length) {
-            const token = tokens[idx];
-            setMessages(prev => [
-              ...prev,
-              {
-                id: `m-token-${Date.now()}-${idx}`,
-                type: 'received',
-                content: `data: {"id":"chatcmpl-9","choices":[{"delta":{"content":"${token}"}}]}`,
-                timestamp: new Date().toLocaleTimeString(),
-                latencyMs: 18 + Math.floor(Math.random() * 12)
-              }
-            ]);
-            idx++;
-          } else {
-            clearInterval(intervalRef.current);
-          }
-        }, 120);
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) {
+      addMessage('system', 'Enter a stream URL before connecting.');
+      return;
+    }
+
+    if (streamType === 'sse') {
+      if (!/^https?:\/\//i.test(trimmedUrl)) {
+        addMessage('system', `"${trimmedUrl}" is not a valid SSE URL — it must start with http:// or https://.`);
+        return;
       }
+
+      setIsConnecting(true);
+      connectStartRef.current = performance.now();
+      let es: EventSource;
+      try {
+        es = new EventSource(trimmedUrl);
+      } catch (err: any) {
+        setIsConnecting(false);
+        addMessage('system', `Failed to open SSE connection: ${err?.message || 'invalid URL'}`);
+        return;
+      }
+      esRef.current = es;
+
+      es.onopen = () => {
+        setIsConnecting(false);
+        setIsConnected(true);
+        addMessage('system', `Connected to ${trimmedUrl} (SSE)`);
+      };
+      es.onmessage = (evt) => {
+        addMessage('received', evt.data, Math.round(performance.now() - connectStartRef.current));
+      };
+      es.onerror = () => {
+        addMessage('system', `Stream error or connection closed for ${trimmedUrl}. Verify the URL is reachable and sends CORS headers permitting this app.`);
+        es.close();
+        esRef.current = null;
+        setIsConnected(false);
+        setIsConnecting(false);
+      };
+    } else {
+      if (!/^wss?:\/\//i.test(trimmedUrl)) {
+        addMessage('system', `"${trimmedUrl}" is not a valid WebSocket URL — it must start with ws:// or wss://.`);
+        return;
+      }
+
+      setIsConnecting(true);
+      let ws: WebSocket;
+      try {
+        ws = new WebSocket(trimmedUrl);
+      } catch (err: any) {
+        setIsConnecting(false);
+        addMessage('system', `Failed to open WebSocket: ${err?.message || 'invalid URL'}`);
+        return;
+      }
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setIsConnecting(false);
+        setIsConnected(true);
+        addMessage('system', `Connected to ${trimmedUrl} (WebSocket)`);
+      };
+      ws.onmessage = (evt) => {
+        addMessage('received', typeof evt.data === 'string' ? evt.data : '[binary frame]');
+      };
+      ws.onerror = () => {
+        addMessage('system', `WebSocket error for ${trimmedUrl}. Verify the URL is reachable.`);
+      };
+      ws.onclose = (evt) => {
+        addMessage('system', `Disconnected from stream${evt.code ? ` (code ${evt.code}${evt.reason ? `: ${evt.reason}` : ''})` : ''}.`);
+        wsRef.current = null;
+        setIsConnected(false);
+        setIsConnecting(false);
+      };
     }
   };
 
   const handleSendMessage = () => {
     if (!outMessage.trim()) return;
-    setMessages(prev => [
-      ...prev,
-      {
-        id: `m-${Date.now()}`,
-        type: 'sent',
-        content: outMessage,
-        timestamp: new Date().toLocaleTimeString()
-      }
-    ]);
-    
-    // Simulate echo reply for WebSockets
-    setTimeout(() => {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `m-rep-${Date.now()}`,
-          type: 'received',
-          content: `ACK: Received frame "${outMessage.substring(0, 30)}..."`,
-          timestamp: new Date().toLocaleTimeString(),
-          latencyMs: 24
-        }
-      ]);
-    }, 180);
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      addMessage('system', 'Cannot send — WebSocket is not connected.');
+      return;
+    }
+    wsRef.current.send(outMessage);
+    addMessage('sent', outMessage);
   };
 
   const handleClear = () => {
     setMessages([]);
   };
 
+  // Close any live connection when switching SSE/WS mode, so it doesn't keep running in the background.
+  const handleStreamTypeChange = (nextType: 'sse' | 'ws') => {
+    closeActiveConnection();
+    setStreamType(nextType);
+    setUrl(nextType === 'sse'
+      ? 'https://api.example.com/v1/chat/completions/stream'
+      : 'wss://echo.websocket.events');
+  };
+
   useEffect(() => {
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      esRef.current?.close();
+      wsRef.current?.close();
     };
   }, []);
 
@@ -133,12 +183,7 @@ export const StreamStudio: React.FC = () => {
       <div className="request-bar-container">
         <select
           value={streamType}
-          onChange={(e) => {
-            setStreamType(e.target.value as any);
-            setUrl(e.target.value === 'sse' 
-              ? 'https://api.example.com/v1/chat/completions/stream' 
-              : 'wss://echo.websocket.events');
-          }}
+          onChange={(e) => handleStreamTypeChange(e.target.value as 'sse' | 'ws')}
           className="method-select-dropdown"
         >
           <option value="sse">SSE Stream</option>
@@ -152,11 +197,13 @@ export const StreamStudio: React.FC = () => {
             onChange={(e) => setUrl(e.target.value)}
             placeholder="ws:// or https:// stream URL"
             className="url-input"
+            disabled={isConnected || isConnecting}
           />
         </div>
 
         <button
           onClick={handleToggleConnect}
+          disabled={isConnecting}
           className={isConnected ? "btn-secondary" : "btn-send"}
           style={{
             background: isConnected ? 'rgba(239, 68, 68, 0.2)' : undefined,
@@ -165,7 +212,7 @@ export const StreamStudio: React.FC = () => {
           }}
         >
           {isConnected ? <Square size={13} /> : <Play size={13} />}
-          <span>{isConnected ? 'Disconnect' : 'Connect'}</span>
+          <span>{isConnecting ? 'Connecting...' : isConnected ? 'Disconnect' : 'Connect'}</span>
         </button>
       </div>
 
@@ -223,10 +270,10 @@ export const StreamStudio: React.FC = () => {
                   gap: '8px',
                   padding: '6px 10px',
                   borderRadius: 'var(--radius-sm)',
-                  background: msg.type === 'sent' 
-                    ? 'rgba(59, 130, 246, 0.08)' 
-                    : msg.type === 'received' 
-                    ? 'rgba(16, 185, 129, 0.08)' 
+                  background: msg.type === 'sent'
+                    ? 'rgba(59, 130, 246, 0.08)'
+                    : msg.type === 'received'
+                    ? 'rgba(16, 185, 129, 0.08)'
                     : 'rgba(255, 255, 255, 0.03)',
                   border: '1px solid rgba(255, 255, 255, 0.04)',
                   fontSize: '12px',

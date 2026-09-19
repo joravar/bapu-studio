@@ -1,4 +1,5 @@
 import { DatabaseConnection, TableSchema } from '../types';
+import { SqliteService } from './sqliteService';
 
 export interface SqlQueryResult {
   success: boolean;
@@ -45,6 +46,10 @@ export const DatabaseService = {
       }
       return trimmed;
     }
+    if (dbType === 'redis') {
+      // Redis has no query planner/execution-plan concept — nothing to wrap.
+      return trimmed;
+    }
     return `EXPLAIN ${trimmed};`;
   },
 
@@ -86,6 +91,11 @@ export const DatabaseService = {
   },
 
   async executeQuery(db: DatabaseConnection, sql: string): Promise<SqlQueryResult> {
+    // SQLite always runs in-process via sql.js (no server, no IPC bridge involved).
+    if (db.type === 'sqlite') {
+      return SqliteService.executeQuery(db.id, sql);
+    }
+
     const isPlayground = Boolean(
       db.isDemoDb ||
       db.id === 'db-playground-analytics' ||
@@ -424,7 +434,24 @@ export const DatabaseService = {
     };
   },
 
+  async disconnect(id: string): Promise<void> {
+    if (SqliteService.isLoaded(id)) {
+      SqliteService.close(id);
+      return;
+    }
+    const bridge = getBridge();
+    if (bridge?.dbDisconnect) {
+      try {
+        await bridge.dbDisconnect(id);
+      } catch {}
+    }
+  },
+
   async fetchSchema(db: DatabaseConnection): Promise<{ success: boolean; tables: TableSchema[]; message?: string }> {
+    if (db.type === 'sqlite') {
+      return { success: true, tables: SqliteService.getSchema(db.id) };
+    }
+
     const bridge = getBridge();
     if (bridge) {
       try {

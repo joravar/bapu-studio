@@ -36,6 +36,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
   const [importName, setImportName] = useState('');
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const [importScriptWarning, setImportScriptWarning] = useState<string | null>(null);
 
   // Export State
   const [exportColId, setExportColId] = useState<string>(
@@ -77,6 +78,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
   const handleExecuteImport = () => {
     setImportError(null);
     setImportSuccess(null);
+    setImportScriptWarning(null);
 
     if (!importText.trim()) {
       setImportError('Please paste collection JSON/YAML or upload a file.');
@@ -85,14 +87,25 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
 
     try {
       const newCol = importCollection(importText, importName || undefined);
+      const scriptCount = newCol.requests.filter(r => r.preRequestScript || r.testScript || r.tests).length;
       onImportCollection(newCol);
       setImportSuccess(`Successfully imported "${newCol.name}" with ${newCol.requests.length} requests!`);
-      setTimeout(() => {
-        onClose();
-        setImportText('');
-        setImportName('');
-        setImportSuccess(null);
-      }, 900);
+
+      if (scriptCount > 0) {
+        // Leave this up for the user to read/dismiss instead of auto-closing the modal.
+        setImportScriptWarning(
+          `${scriptCount} imported request(s) include pre-request/test scripts. These run automatically ` +
+          `when you click Send. They execute in an isolated sandbox with no network, storage, or database access, ` +
+          `but they can read/modify this environment's variables — only import collections from sources you trust.`
+        );
+      } else {
+        setTimeout(() => {
+          onClose();
+          setImportText('');
+          setImportName('');
+          setImportSuccess(null);
+        }, 900);
+      }
     } catch (err: any) {
       setImportError(err.message || 'Failed to import collection. Please check JSON syntax.');
     }
@@ -277,6 +290,24 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
                 }}>
                   <Check size={14} />
                   <span>{importSuccess}</span>
+                </div>
+              )}
+
+              {importScriptWarning && (
+                <div style={{
+                  padding: '8px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'rgba(245, 158, 11, 0.1)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  color: '#fbbf24',
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '6px',
+                  marginBottom: '12px'
+                }}>
+                  <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '1px' }} />
+                  <span>{importScriptWarning}</span>
                 </div>
               )}
 

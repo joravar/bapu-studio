@@ -1,13 +1,22 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, safeStorage, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs/promises');
+const net = require('net');
 const pg = require('pg');
 const mysql = require('mysql2/promise');
 const { MongoClient } = require('mongodb');
+const { Client: SshClient } = require('ssh2');
+const Redis = require('ioredis');
 
 // Active Connection Pools & Clients Cache
 const pgPools = new Map();
 const mysqlPools = new Map();
 const mongoClients = new Map();
+const redisClients = new Map();
+
+const DEFAULT_DB_PORTS = { postgres: 5432, mysql: 3306, mongodb: 27017, redis: 6379 };
+// SSH tunnels backing a pooled connection, keyed by config.id (same lifetime as the pool/client above)
+const sshTunnels = new Map();
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -61,7 +70,8 @@ function createWindow() {
         ...details.responseHeaders,
         'Content-Security-Policy': [
           "default-src 'self'; " +
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; " +
+          "worker-src 'self' blob:; " +
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
           "font-src 'self' https://fonts.gstatic.com; " +
           "connect-src 'self' https: http: ws: wss:; " +
@@ -73,9 +83,95 @@ function createWindow() {
 }
 
 // ------------------------------------------------------------------------------
+// SSH TUNNEL SUPPORT
+// Opens an SSH connection to config.sshHost and a local TCP forwarding server that pipes each
+// incoming connection through the SSH session to dstHost:dstPort. DB drivers then connect to
+// 127.0.0.1:<localPort> as if it were a normal local TCP endpoint. This only supports the
+// discrete host/port connection mode (not a raw connection string), since a connection string
+// bakes in the real target host directly.
+function openSshTunnel(config, dstHost, dstPort) {
+  return new Promise((resolve, reject) => {
+    const sshClient = new SshClient();
+    let settled = false;
+
+    sshClient.on('ready', () => {
+      const localServer = net.createServer((socket) => {
+        sshClient.forwardOut(
+          socket.remoteAddress || '127.0.0.1',
+          socket.remotePort || 0,
+          dstHost,
+          dstPort,
+          (err, stream) => {
+            if (err) {
+              socket.destroy();
+              return;
+            }
+            socket.pipe(stream);
+            stream.pipe(socket);
+            stream.on('error', () => socket.destroy());
+            socket.on('error', () => stream.destroy());
+          }
+        );
+      });
+
+      localServer.on('error', (err) => {
+        if (settled) return;
+        settled = true;
+        sshClient.end();
+        reject(err);
+      });
+
+      localServer.listen(0, '127.0.0.1', () => {
+        if (settled) return;
+        settled = true;
+        resolve({ sshClient, localServer, localPort: localServer.address().port });
+      });
+    });
+
+    sshClient.on('error', (err) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    });
+
+    sshClient.connect({
+      host: config.sshHost,
+      port: parseInt(config.sshPort, 10) || 22,
+      username: config.sshUsername,
+      password: config.sshPassword || undefined,
+      privateKey: config.sshPrivateKey || undefined,
+      passphrase: config.sshPassphrase || undefined,
+      readyTimeout: 10000
+    });
+  });
+}
+
+function closeSshTunnel(tunnel) {
+  if (!tunnel) return;
+  try { tunnel.localServer.close(); } catch {}
+  try { tunnel.sshClient.end(); } catch {}
+}
+
+// Resolves the host/port a pooled DB driver should actually connect to: either the real remote
+// target, or 127.0.0.1:<localPort> of a persistent tunnel cached alongside that pool for config.id.
+async function getEffectiveTarget(config, defaultPort) {
+  if (config.sshEnabled && config.sshHost && !config.connectionString) {
+    let tunnel = sshTunnels.get(config.id);
+    if (!tunnel) {
+      const dstHost = config.host || 'localhost';
+      const dstPort = parseInt(config.port, 10) || defaultPort;
+      tunnel = await openSshTunnel(config, dstHost, dstPort);
+      sshTunnels.set(config.id, tunnel);
+    }
+    return { host: '127.0.0.1', port: tunnel.localPort };
+  }
+  return { host: config.host || 'localhost', port: parseInt(config.port, 10) || defaultPort };
+}
+
+// ------------------------------------------------------------------------------
 // NATIVE DATABASE DRIVER IPC HANDLERS (PostgreSQL, MySQL, MongoDB)
 // Helper to build robust Postgres config with auto SSL, TLS SNI & custom CA / mTLS certificates
-function getPgConfig(config) {
+function getPgConfig(config, connectOverride) {
   let host = config.host;
   if (!host && config.connectionString) {
     try {
@@ -85,7 +181,7 @@ function getPgConfig(config) {
   }
 
   const isSslNeeded = config.ssl !== false && (
-    config.ssl === true || 
+    config.ssl === true ||
     Boolean(config.sslCaCert || config.sslClientCert) ||
     (config.connectionString && (config.connectionString.includes('sslmode') || config.connectionString.includes('neon.tech') || config.connectionString.includes('supabase') || config.connectionString.includes('aiven') || config.connectionString.includes('render.com') || config.connectionString.includes('aws'))) ||
     (host && !host.includes('localhost') && !host.includes('127.0.0.1'))
@@ -94,6 +190,7 @@ function getPgConfig(config) {
   let sslConfig = undefined;
   if (isSslNeeded) {
     sslConfig = {
+      // Always validated against the real remote host, even when connecting via a local tunnel port.
       rejectUnauthorized: config.sslRejectUnauthorized !== undefined ? Boolean(config.sslRejectUnauthorized) : (config.sslCaCert ? true : false),
       servername: host || undefined
     };
@@ -119,8 +216,8 @@ function getPgConfig(config) {
 
   // Otherwise use discrete credentials parameters
   return {
-    host: host || 'localhost',
-    port: parseInt(config.port, 10) || 5432,
+    host: (connectOverride ? connectOverride.host : host) || 'localhost',
+    port: connectOverride ? connectOverride.port : (parseInt(config.port, 10) || 5432),
     database: config.database || 'postgres',
     user: config.username || 'postgres',
     password: config.password || '',
@@ -142,17 +239,105 @@ function getMysqlSslConfig(config) {
   return ssl;
 }
 
+// Builds a lazily-connecting ioredis client. `connectOverride` (used for SSH-tunneled connections)
+// swaps in the local tunnel host/port while a raw connection string (which bakes in its own host)
+// is left untouched — tunneling isn't supported in connection-string mode, same as the other drivers.
+const REDIS_COMMON_OPTS = {
+  connectTimeout: 8000,
+  lazyConnect: true,
+  maxRetriesPerRequest: 1,
+  retryStrategy: (times) => (times > 2 ? null : 200)
+};
+
+function buildRedisClient(config, connectOverride) {
+  let client;
+  if (config.connectionString && !connectOverride) {
+    client = new Redis(config.connectionString, REDIS_COMMON_OPTS);
+  } else {
+    // Redis has no valid auth combination for "username with no password" — a lone username
+    // (e.g. a stale default left over from switching driver types in the UI) would otherwise
+    // make ioredis attempt to authenticate and get rejected by servers that don't expect it.
+    const opts = {
+      ...REDIS_COMMON_OPTS,
+      host: (connectOverride ? connectOverride.host : config.host) || 'localhost',
+      port: connectOverride ? connectOverride.port : (parseInt(config.port, 10) || 6379),
+      username: config.password ? (config.username || undefined) : undefined,
+      password: config.password || undefined,
+      db: parseInt(config.database, 10) || 0
+    };
+
+    if (config.ssl) {
+      opts.tls = {
+        rejectUnauthorized: config.sslRejectUnauthorized !== undefined ? Boolean(config.sslRejectUnauthorized) : true,
+        ca: config.sslCaCert || undefined,
+        cert: config.sslClientCert || undefined,
+        key: config.sslClientKey || undefined
+      };
+    }
+
+    client = new Redis(opts);
+  }
+  // We always await connect()/commands and handle rejection ourselves — this just stops ioredis's
+  // EventEmitter from logging an "unhandled error" warning on top of that.
+  client.on('error', () => {});
+  return client;
+}
+
+// Splits a Redis command line into tokens, respecting single/double-quoted arguments
+// (e.g. SET mykey "hello world").
+function parseRedisCommandLine(line) {
+  const tokens = [];
+  const regex = /"([^"]*)"|'([^']*)'|(\S+)/g;
+  let match;
+  while ((match = regex.exec(line)) !== null) {
+    tokens.push(match[1] !== undefined ? match[1] : match[2] !== undefined ? match[2] : match[3]);
+  }
+  return tokens;
+}
+
+// Normalizes Redis's heterogeneous reply shapes into the app's uniform columns/rows grid.
+function formatRedisResult(result) {
+  if (result === null || result === undefined) {
+    return { columns: ['result'], rows: [{ result: '(nil)' }] };
+  }
+  if (Array.isArray(result)) {
+    return {
+      columns: ['index', 'value'],
+      rows: result.map((v, i) => ({
+        index: i,
+        value: v === null || v === undefined ? '(nil)' : (typeof v === 'object' ? JSON.stringify(v) : String(v))
+      }))
+    };
+  }
+  if (typeof result === 'object') {
+    return {
+      columns: ['field', 'value'],
+      rows: Object.entries(result).map(([field, value]) => ({ field, value: String(value) }))
+    };
+  }
+  return { columns: ['result'], rows: [{ result: String(result) }] };
+}
+
 // 1. Test Database Connection
 ipcMain.handle('db:test-connection', async (event, config) => {
   const startTime = Date.now();
+  const useTunnel = Boolean(config.sshEnabled && config.sshHost && !config.connectionString);
+  let tunnel = null;
   try {
     if (config.type === 'postgres') {
-      const client = new pg.Client(getPgConfig(config));
+      let pgCfg;
+      if (useTunnel) {
+        tunnel = await openSshTunnel(config, config.host || 'localhost', parseInt(config.port, 10) || 5432);
+        pgCfg = getPgConfig(config, { host: '127.0.0.1', port: tunnel.localPort });
+      } else {
+        pgCfg = getPgConfig(config);
+      }
+      const client = new pg.Client(pgCfg);
       await client.connect();
       await client.query('SELECT 1');
       await client.end();
       const latencyMs = Date.now() - startTime;
-      return { success: true, latencyMs, message: `Connected to PostgreSQL successfully (${latencyMs}ms)` };
+      return { success: true, latencyMs, message: `Connected to PostgreSQL successfully (${latencyMs}ms)${useTunnel ? ' via SSH tunnel' : ''}` };
     }
 
     if (config.type === 'mysql') {
@@ -165,9 +350,16 @@ ipcMain.handle('db:test-connection', async (event, config) => {
           ssl: sslConfig
         });
       } else {
+        let targetHost = config.host || 'localhost';
+        let targetPort = parseInt(config.port, 10) || 3306;
+        if (useTunnel) {
+          tunnel = await openSshTunnel(config, targetHost, targetPort);
+          targetHost = '127.0.0.1';
+          targetPort = tunnel.localPort;
+        }
         connection = await mysql.createConnection({
-          host: config.host || 'localhost',
-          port: parseInt(config.port, 10) || 3306,
+          host: targetHost,
+          port: targetPort,
           database: config.database,
           user: config.username || 'root',
           password: config.password || '',
@@ -178,15 +370,20 @@ ipcMain.handle('db:test-connection', async (event, config) => {
       await connection.query('SELECT 1');
       await connection.end();
       const latencyMs = Date.now() - startTime;
-      return { success: true, latencyMs, message: `Connected to MySQL successfully (${latencyMs}ms)` };
+      return { success: true, latencyMs, message: `Connected to MySQL successfully (${latencyMs}ms)${useTunnel ? ' via SSH tunnel' : ''}` };
     }
 
     if (config.type === 'mongodb') {
       let uri = config.connectionString;
       if (!uri) {
         const auth = config.username && config.password ? `${encodeURIComponent(config.username)}:${encodeURIComponent(config.password)}@` : '';
-        const host = config.host || 'localhost';
-        const port = config.port || 27017;
+        let host = config.host || 'localhost';
+        let port = config.port || 27017;
+        if (useTunnel) {
+          tunnel = await openSshTunnel(config, host, parseInt(port, 10) || 27017);
+          host = '127.0.0.1';
+          port = tunnel.localPort;
+        }
         uri = `mongodb://${auth}${host}:${port}/${config.database || 'admin'}`;
       }
       const client = new MongoClient(uri, { serverSelectionTimeoutMS: 7000 });
@@ -194,20 +391,44 @@ ipcMain.handle('db:test-connection', async (event, config) => {
       await client.db(config.database || 'admin').command({ ping: 1 });
       await client.close();
       const latencyMs = Date.now() - startTime;
-      return { success: true, latencyMs, message: `Connected to MongoDB successfully (${latencyMs}ms)` };
+      return { success: true, latencyMs, message: `Connected to MongoDB successfully (${latencyMs}ms)${useTunnel ? ' via SSH tunnel' : ''}` };
+    }
+
+    if (config.type === 'redis') {
+      let redisTarget = null;
+      if (useTunnel) {
+        tunnel = await openSshTunnel(config, config.host || 'localhost', parseInt(config.port, 10) || 6379);
+        redisTarget = { host: '127.0.0.1', port: tunnel.localPort };
+      }
+      const client = buildRedisClient(config, redisTarget);
+      try {
+        await client.connect();
+        await client.ping();
+      } finally {
+        client.disconnect();
+      }
+      const latencyMs = Date.now() - startTime;
+      return { success: true, latencyMs, message: `Connected to Redis successfully (${latencyMs}ms)${useTunnel ? ' via SSH tunnel' : ''}` };
     }
 
     return { success: true, latencyMs: 5, message: `Driver ready` };
   } catch (err) {
     let friendlyMessage = err.message || 'Database connection failed';
-    if (err.code === 'ECONNREFUSED' || err.message?.includes('ECONNREFUSED')) {
-      friendlyMessage = `Could not connect to ${config.type?.toUpperCase() || 'Database'} on ${config.host || 'localhost'}:${config.port || 5432} (Connection Refused). Verify host address and port.`;
+    if (useTunnel && (err.level === 'client-authentication' || err.level === 'client-timeout' || err.message?.includes(config.sshHost))) {
+      friendlyMessage = `SSH tunnel error connecting to ${config.sshHost}:${config.sshPort || 22} as "${config.sshUsername || ''}": ${err.message}`;
+    } else if (err.code === 'ECONNREFUSED' || err.message?.includes('ECONNREFUSED')) {
+      const defaultPort = DEFAULT_DB_PORTS[config.type] || 5432;
+      friendlyMessage = `Could not connect to ${config.type?.toUpperCase() || 'Database'} on ${config.host || 'localhost'}:${config.port || defaultPort} (Connection Refused). Verify host address and port.`;
     } else if (err.message?.includes('password authentication failed')) {
       friendlyMessage = `Authentication failed: Incorrect username or password for user "${config.username || 'postgres'}".`;
+    } else if (err.message?.includes('WRONGPASS') || err.message?.includes('NOAUTH') || err.message?.includes('NOPERM')) {
+      friendlyMessage = `Redis authentication failed: ${err.message}. Verify the username/password (or ACL permissions) for this connection.`;
     } else if (err.code === 'ETIMEDOUT' || err.message?.includes('timeout')) {
       friendlyMessage = `Connection timed out reaching ${config.host || 'server'}:${config.port || 'port'}. Verify server address, port, and firewall rules.`;
     }
     return { success: false, message: friendlyMessage };
+  } finally {
+    closeSshTunnel(tunnel);
   }
 });
 
@@ -218,7 +439,10 @@ ipcMain.handle('db:query', async (event, { config, sql }) => {
     if (config.type === 'postgres') {
       let pool = pgPools.get(config.id);
       if (!pool) {
-        pool = new pg.Pool(getPgConfig(config));
+        const pgCfg = config.sshEnabled && config.sshHost && !config.connectionString
+          ? getPgConfig(config, await getEffectiveTarget(config, 5432))
+          : getPgConfig(config);
+        pool = new pg.Pool(pgCfg);
         pgPools.set(config.id, pool);
       }
 
@@ -255,9 +479,10 @@ ipcMain.handle('db:query', async (event, { config, sql }) => {
             ssl: sslConfig
           });
         } else {
+          const target = await getEffectiveTarget(config, 3306);
           pool = mysql.createPool({
-            host: config.host || 'localhost',
-            port: parseInt(config.port, 10) || 3306,
+            host: target.host,
+            port: target.port,
             database: config.database,
             user: config.username || 'root',
             password: config.password || '',
@@ -296,9 +521,8 @@ ipcMain.handle('db:query', async (event, { config, sql }) => {
         let uri = config.connectionString;
         if (!uri) {
           const auth = config.username && config.password ? `${encodeURIComponent(config.username)}:${encodeURIComponent(config.password)}@` : '';
-          const host = config.host || 'localhost';
-          const port = config.port || 27017;
-          uri = `mongodb://${auth}${host}:${port}/${config.database || 'test'}`;
+          const target = await getEffectiveTarget(config, 27017);
+          uri = `mongodb://${auth}${target.host}:${target.port}/${config.database || 'test'}`;
         }
         client = new MongoClient(uri);
         await client.connect();
@@ -306,7 +530,7 @@ ipcMain.handle('db:query', async (event, { config, sql }) => {
       }
 
       const db = client.db(config.database || 'test');
-      
+
       // Parse query string (supports JSON filter or collection.find format)
       let collectionName = config.tables?.[0]?.name || 'documents';
       let filter = {};
@@ -348,13 +572,47 @@ ipcMain.handle('db:query', async (event, { config, sql }) => {
       };
     }
 
+    if (config.type === 'redis') {
+      let client = redisClients.get(config.id);
+      if (!client) {
+        const target = config.sshEnabled && config.sshHost && !config.connectionString
+          ? await getEffectiveTarget(config, 6379)
+          : null;
+        client = buildRedisClient(config, target);
+        await client.connect();
+        redisClients.set(config.id, client);
+      }
+
+      const tokens = parseRedisCommandLine(sql.trim());
+      if (tokens.length === 0) {
+        return { success: false, message: 'Enter a Redis command, e.g. GET mykey or KEYS *', executionTimeMs: Date.now() - startTime };
+      }
+
+      const [cmd, ...args] = tokens;
+      const raw = await client.call(cmd, ...args);
+      const { columns, rows } = formatRedisResult(raw);
+      const executionTimeMs = Date.now() - startTime;
+
+      return {
+        success: true,
+        columns,
+        rows,
+        rowCount: rows.length,
+        executionTimeMs,
+        command: cmd.toUpperCase()
+      };
+    }
+
     return { success: false, message: `Unsupported driver: ${config.type}` };
   } catch (err) {
     let friendlyMessage = err.message || 'Query execution error';
     if (err.code === 'ECONNREFUSED' || err.message?.includes('ECONNREFUSED')) {
-      friendlyMessage = `Could not connect to ${config.type?.toUpperCase() || 'Database'} on ${config.host || 'localhost'}:${config.port || 5432} (Connection Refused). No database service is running on this port.`;
+      const defaultPort = DEFAULT_DB_PORTS[config.type] || 5432;
+      friendlyMessage = `Could not connect to ${config.type?.toUpperCase() || 'Database'} on ${config.host || 'localhost'}:${config.port || defaultPort} (Connection Refused). No database service is running on this port.`;
     } else if (err.message?.includes('password authentication failed')) {
       friendlyMessage = `Authentication failed: Incorrect username or password for user "${config.username || 'postgres'}".`;
+    } else if (err.message?.includes('WRONGPASS') || err.message?.includes('NOAUTH') || err.message?.includes('NOPERM')) {
+      friendlyMessage = `Redis authentication failed: ${err.message}. Verify the username/password (or ACL permissions) for this connection.`;
     }
     return {
       success: false,
@@ -370,15 +628,10 @@ ipcMain.handle('db:get-schema', async (event, config) => {
     if (config.type === 'postgres') {
       let pool = pgPools.get(config.id);
       if (!pool) {
-        if (config.connectionString) {
-          pool = new pg.Pool({
-            connectionString: config.connectionString,
-            ssl: config.ssl !== false ? { rejectUnauthorized: false } : undefined,
-            connectionTimeoutMillis: 10000
-          });
-        } else {
-          pool = new pg.Pool(getPgConfig(config));
-        }
+        const pgCfg = config.sshEnabled && config.sshHost && !config.connectionString
+          ? getPgConfig(config, await getEffectiveTarget(config, 5432))
+          : getPgConfig(config);
+        pool = new pg.Pool(pgCfg);
         pgPools.set(config.id, pool);
       }
 
@@ -447,24 +700,27 @@ ipcMain.handle('db:get-schema', async (event, config) => {
     if (config.type === 'mysql') {
       let pool = mysqlPools.get(config.id);
       if (!pool) {
+        const sslConfig = getMysqlSslConfig(config);
         if (config.connectionString) {
           pool = mysql.createPool({
             uri: config.connectionString,
             waitForConnections: true,
             connectionLimit: 10,
-            connectTimeout: 8000
+            connectTimeout: 8000,
+            ssl: sslConfig
           });
         } else {
+          const target = await getEffectiveTarget(config, 3306);
           pool = mysql.createPool({
-            host: config.host || 'localhost',
-            port: parseInt(config.port, 10) || 3306,
+            host: target.host,
+            port: target.port,
             database: config.database,
             user: config.username || 'root',
             password: config.password || '',
             waitForConnections: true,
             connectionLimit: 10,
             connectTimeout: 8000,
-            ssl: config.ssl === true ? { rejectUnauthorized: false } : undefined
+            ssl: sslConfig
           });
         }
         mysqlPools.set(config.id, pool);
@@ -519,9 +775,8 @@ ipcMain.handle('db:get-schema', async (event, config) => {
         let uri = config.connectionString;
         if (!uri) {
           const auth = config.username && config.password ? `${encodeURIComponent(config.username)}:${encodeURIComponent(config.password)}@` : '';
-          const host = config.host || 'localhost';
-          const port = config.port || 27017;
-          uri = `mongodb://${auth}${host}:${port}/${config.database || 'test'}`;
+          const target = await getEffectiveTarget(config, 27017);
+          uri = `mongodb://${auth}${target.host}:${target.port}/${config.database || 'test'}`;
         }
         client = new MongoClient(uri);
         await client.connect();
@@ -552,9 +807,189 @@ ipcMain.handle('db:get-schema', async (event, config) => {
       return { success: true, tables };
     }
 
+    if (config.type === 'redis') {
+      let client = redisClients.get(config.id);
+      if (!client) {
+        const target = config.sshEnabled && config.sshHost && !config.connectionString
+          ? await getEffectiveTarget(config, 6379)
+          : null;
+        client = buildRedisClient(config, target);
+        await client.connect();
+        redisClients.set(config.id, client);
+      }
+
+      // Redis has no tables — group a sample of the keyspace by Redis TYPE instead, so the
+      // schema browser shows something meaningful (e.g. "string", "hash", "list" pseudo-tables).
+      const typeGroups = {};
+      let cursor = '0';
+      let scanned = 0;
+      do {
+        const [nextCursor, keys] = await client.call('SCAN', cursor, 'COUNT', '200');
+        cursor = nextCursor;
+        if (keys.length > 0) {
+          const pipeline = client.pipeline();
+          keys.forEach(k => pipeline.call('TYPE', k));
+          const typeResults = await pipeline.exec();
+          keys.forEach((key, idx) => {
+            const type = (typeResults[idx] && !typeResults[idx][0] && typeResults[idx][1]) || 'unknown';
+            if (!typeGroups[type]) typeGroups[type] = [];
+            if (typeGroups[type].length < 50) typeGroups[type].push(key);
+          });
+        }
+        scanned += keys.length;
+      } while (cursor !== '0' && scanned < 1000);
+
+      const tables = Object.entries(typeGroups).map(([type, keys]) => ({
+        name: type,
+        rowCount: keys.length,
+        columns: keys.map(k => ({ name: k, type: 'KEY', isPrimaryKey: false, isNullable: true }))
+      }));
+
+      return { success: true, tables };
+    }
+
     return { success: false, tables: [] };
   } catch (err) {
     return { success: false, message: err.message, tables: [] };
+  }
+});
+
+// OS-keychain-backed encryption for secrets persisted by the renderer (DB passwords, API keys, etc).
+// Ciphertext is prefixed so plaintext written by older versions still round-trips untouched.
+const SECURE_PREFIX = 'enc1:';
+
+ipcMain.on('secure:encrypt-sync', (event, plainText) => {
+  try {
+    if (typeof plainText !== 'string' || !safeStorage.isEncryptionAvailable()) {
+      event.returnValue = plainText;
+      return;
+    }
+    const encrypted = safeStorage.encryptString(plainText);
+    event.returnValue = SECURE_PREFIX + encrypted.toString('base64');
+  } catch {
+    event.returnValue = plainText;
+  }
+});
+
+ipcMain.on('secure:decrypt-sync', (event, storedText) => {
+  try {
+    if (typeof storedText !== 'string' || !storedText.startsWith(SECURE_PREFIX)) {
+      event.returnValue = storedText;
+      return;
+    }
+    if (!safeStorage.isEncryptionAvailable()) {
+      event.returnValue = '';
+      return;
+    }
+    const buffer = Buffer.from(storedText.slice(SECURE_PREFIX.length), 'base64');
+    event.returnValue = safeStorage.decryptString(buffer);
+  } catch {
+    event.returnValue = '';
+  }
+});
+
+// 4. Disconnect / invalidate a cached pool or client (called when a connection is edited or removed,
+// since edits reuse the same config.id and would otherwise keep querying through stale credentials)
+ipcMain.handle('db:disconnect', async (event, id) => {
+  try {
+    const pgPool = pgPools.get(id);
+    if (pgPool) {
+      pgPools.delete(id);
+      await pgPool.end().catch(() => {});
+    }
+    const mysqlPool = mysqlPools.get(id);
+    if (mysqlPool) {
+      mysqlPools.delete(id);
+      await mysqlPool.end().catch(() => {});
+    }
+    const mongoClient = mongoClients.get(id);
+    if (mongoClient) {
+      mongoClients.delete(id);
+      await mongoClient.close().catch(() => {});
+    }
+    const redisClient = redisClients.get(id);
+    if (redisClient) {
+      redisClients.delete(id);
+      redisClient.disconnect();
+    }
+    const tunnel = sshTunnels.get(id);
+    if (tunnel) {
+      sshTunnels.delete(id);
+      closeSshTunnel(tunnel);
+    }
+    return { success: true };
+  } catch (err) {
+    return { success: false, message: err.message };
+  }
+});
+
+// ------------------------------------------------------------------------------
+// GIT-FRIENDLY COLLECTION FOLDER SYNC
+// Mirrors a collection's requests to plain JSON files on disk (one file per request, plus a
+// small manifest) so they can be committed to git and reviewed/diffed like code, Bruno-style.
+function safeFileId(id) {
+  return String(id).replace(/[^a-zA-Z0-9_.-]/g, '_');
+}
+
+ipcMain.handle('fs:choose-folder', async () => {
+  const win = BrowserWindow.getFocusedWindow();
+  const result = await dialog.showOpenDialog(win, {
+    properties: ['openDirectory', 'createDirectory'],
+    title: 'Choose a folder for this collection'
+  });
+  if (result.canceled || !result.filePaths[0]) return { success: false };
+  return { success: true, folderPath: result.filePaths[0] };
+});
+
+ipcMain.handle('fs:write-collection-folder', async (event, { folderPath, collectionName, requests }) => {
+  try {
+    const requestsDir = path.join(folderPath, 'requests');
+    await fs.mkdir(requestsDir, { recursive: true });
+
+    const requestOrder = requests.map(r => r.id);
+    const manifest = { name: collectionName, requestOrder };
+    await fs.writeFile(path.join(folderPath, 'collection.json'), JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+
+    const keepFiles = new Set(requestOrder.map(id => safeFileId(id) + '.json'));
+    for (const req of requests) {
+      const fileName = safeFileId(req.id) + '.json';
+      await fs.writeFile(path.join(requestsDir, fileName), JSON.stringify(req, null, 2) + '\n', 'utf8');
+    }
+
+    // Prune files for requests that were removed from the collection, so deletions are reflected on disk too.
+    let existingFiles = [];
+    try {
+      existingFiles = await fs.readdir(requestsDir);
+    } catch {}
+    for (const file of existingFiles) {
+      if (file.endsWith('.json') && !keepFiles.has(file)) {
+        await fs.unlink(path.join(requestsDir, file)).catch(() => {});
+      }
+    }
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, message: err.message };
+  }
+});
+
+ipcMain.handle('fs:read-collection-folder', async (event, folderPath) => {
+  try {
+    const manifestRaw = await fs.readFile(path.join(folderPath, 'collection.json'), 'utf8');
+    const manifest = JSON.parse(manifestRaw);
+    const requestsDir = path.join(folderPath, 'requests');
+
+    const requests = [];
+    for (const id of (manifest.requestOrder || [])) {
+      try {
+        const raw = await fs.readFile(path.join(requestsDir, safeFileId(id) + '.json'), 'utf8');
+        requests.push(JSON.parse(raw));
+      } catch {}
+    }
+
+    return { success: true, name: manifest.name || path.basename(folderPath), requests };
+  } catch (err) {
+    return { success: false, message: `Could not read a Bapu collection from this folder: ${err.message}` };
   }
 });
 
@@ -586,6 +1021,12 @@ app.on('window-all-closed', () => {
   }
   for (const client of mongoClients.values()) {
     try { client.close(); } catch {}
+  }
+  for (const client of redisClients.values()) {
+    try { client.disconnect(); } catch {}
+  }
+  for (const tunnel of sshTunnels.values()) {
+    closeSshTunnel(tunnel);
   }
   if (process.platform !== 'darwin') app.quit();
 });

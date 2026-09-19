@@ -25,3 +25,6 @@ Thumbs.db
 # Local private notes & founder strategy
 .local-stuff/
 
+# Temp data dir for the real-Postgres integration test (scripts/test-postgres-integration.mjs)
+scripts/.tmp-pg-test-data/
+

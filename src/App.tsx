@@ -15,6 +15,9 @@ import {
 } from './data/mockData';
 import { ApiRequest, Collection, DatabaseConnection, Environment, HistoryItem } from './types';
 import { Globe, Database, KeyRound, Radio, Sparkles, X, Plus } from 'lucide-react';
+import { DatabaseService } from './services/databaseService';
+import { CollectionSyncService } from './services/collectionSyncService';
+import { secureGetItem, secureSetItem } from './utils/secureStorage';
 
 export function sanitizeDatabase(db: any): DatabaseConnection {
   if (!db || typeof db !== 'object') {
@@ -35,6 +38,13 @@ export function sanitizeDatabase(db: any): DatabaseConnection {
     sslClientCert: db.sslClientCert ? String(db.sslClientCert) : undefined,
     sslClientKey: db.sslClientKey ? String(db.sslClientKey) : undefined,
     sslRejectUnauthorized: db.sslRejectUnauthorized !== undefined ? Boolean(db.sslRejectUnauthorized) : undefined,
+    sshEnabled: Boolean(db.sshEnabled),
+    sshHost: db.sshHost ? String(db.sshHost) : undefined,
+    sshPort: db.sshPort ? String(db.sshPort) : undefined,
+    sshUsername: db.sshUsername ? String(db.sshUsername) : undefined,
+    sshPassword: db.sshPassword ? String(db.sshPassword) : undefined,
+    sshPrivateKey: db.sshPrivateKey ? String(db.sshPrivateKey) : undefined,
+    sshPassphrase: db.sshPassphrase ? String(db.sshPassphrase) : undefined,
     isConnected: Boolean(db.isConnected),
     isDemoDb: Boolean(db.isDemoDb),
     tables: Array.isArray(db.tables) ? db.tables.map((t: any) => ({
@@ -56,7 +66,7 @@ export const App: React.FC = () => {
 
   const [collections, setCollections] = useState<Collection[]>(() => {
     try {
-      const saved = localStorage.getItem('bapu_collections');
+      const saved = secureGetItem('bapu_collections');
       if (saved) return JSON.parse(saved);
     } catch {}
     return INITIAL_COLLECTIONS;
@@ -64,7 +74,7 @@ export const App: React.FC = () => {
 
   const [activeRequest, setActiveRequest] = useState<ApiRequest | null>(() => {
     try {
-      const saved = localStorage.getItem('bapu_collections');
+      const saved = secureGetItem('bapu_collections');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed[0]?.requests[0]) return parsed[0].requests[0];
@@ -75,7 +85,7 @@ export const App: React.FC = () => {
 
   const [databases, setDatabases] = useState<DatabaseConnection[]>(() => {
     try {
-      const saved = localStorage.getItem('bapu_databases');
+      const saved = secureGetItem('bapu_databases');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
@@ -88,7 +98,7 @@ export const App: React.FC = () => {
 
   const [activeDb, setActiveDb] = useState<DatabaseConnection>(() => {
     try {
-      const saved = localStorage.getItem('bapu_databases');
+      const saved = secureGetItem('bapu_databases');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed[0]) return sanitizeDatabase(parsed[0]);
@@ -99,7 +109,7 @@ export const App: React.FC = () => {
 
   const [environments, setEnvironments] = useState<Environment[]>(() => {
     try {
-      const saved = localStorage.getItem('bapu_environments');
+      const saved = secureGetItem('bapu_environments');
       if (saved) return JSON.parse(saved);
     } catch {}
     return INITIAL_ENVIRONMENTS;
@@ -107,7 +117,7 @@ export const App: React.FC = () => {
 
   const [activeEnv, setActiveEnv] = useState<Environment>(() => {
     try {
-      const saved = localStorage.getItem('bapu_environments');
+      const saved = secureGetItem('bapu_environments');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed[0]) return parsed[0];
@@ -125,22 +135,37 @@ export const App: React.FC = () => {
   });
 
 
-  // Automatically save any changes to localStorage
+  // Automatically save any changes to localStorage (secret-bearing state is encrypted at rest — see secureStorage.ts)
   useEffect(() => {
     try {
-      localStorage.setItem('bapu_collections', JSON.stringify(collections));
+      secureSetItem('bapu_collections', JSON.stringify(collections));
     } catch {}
+  }, [collections]);
+
+  // Mirror any folder-linked collection to disk as plain JSON files (one per request), debounced
+  // so rapid edits (e.g. typing in a request body) don't hammer the filesystem on every keystroke.
+  useEffect(() => {
+    const linked = collections.filter(c => c.folderPath);
+    if (linked.length === 0) return;
+
+    const timer = setTimeout(() => {
+      linked.forEach(col => {
+        CollectionSyncService.writeToFolder(col.folderPath!, col.name, col.requests).catch(() => {});
+      });
+    }, 700);
+
+    return () => clearTimeout(timer);
   }, [collections]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('bapu_databases', JSON.stringify(databases));
+      secureSetItem('bapu_databases', JSON.stringify(databases));
     } catch {}
   }, [databases]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('bapu_environments', JSON.stringify(environments));
+      secureSetItem('bapu_environments', JSON.stringify(environments));
     } catch {}
   }, [environments]);
 
@@ -247,6 +272,9 @@ export const App: React.FC = () => {
 
   const handleUpdateDatabase = (updatedDb: DatabaseConnection) => {
     const cleanDb = sanitizeDatabase(updatedDb);
+    // Drop any cached connection pool for this id so edited credentials/host take effect immediately,
+    // instead of the next query silently reusing a stale pool opened with the old config.
+    DatabaseService.disconnect(cleanDb.id).catch(() => {});
     setDatabases(prev => prev.map(d => d.id === cleanDb.id ? cleanDb : d));
     if (activeDb?.id === cleanDb.id) {
       setActiveDb(cleanDb);
@@ -272,6 +300,7 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteDatabase = (dbId: string) => {
+    DatabaseService.disconnect(dbId).catch(() => {});
     setDatabases(prev => {
       const remaining = prev.filter(d => d.id !== dbId);
       if (activeDb?.id === dbId) {
@@ -448,6 +477,50 @@ export const App: React.FC = () => {
     handleRecordHistory(`Imported: ${newCol.name}`, `${newCol.requests.length} API endpoints parsed`);
   };
 
+  const handleLinkCollectionFolder = async (collectionId: string) => {
+    const folderPath = await CollectionSyncService.chooseFolder();
+    if (!folderPath) return;
+
+    const col = collections.find(c => c.id === collectionId);
+    if (!col) return;
+
+    setCollections(prev => prev.map(c => c.id === collectionId ? { ...c, folderPath } : c));
+    const res = await CollectionSyncService.writeToFolder(folderPath, col.name, col.requests);
+    handleRecordHistory(
+      `Linked to Folder: ${col.name}`,
+      res.success ? folderPath : `Failed: ${res.message}`
+    );
+  };
+
+  const handleUnlinkCollectionFolder = (collectionId: string) => {
+    setCollections(prev => prev.map(c => c.id === collectionId ? { ...c, folderPath: undefined } : c));
+  };
+
+  const handleLoadCollectionFromFolder = async () => {
+    const folderPath = await CollectionSyncService.chooseFolder();
+    if (!folderPath) return;
+
+    const res = await CollectionSyncService.readFromFolder(folderPath);
+    if (!res.success || !res.requests) {
+      handleRecordHistory('Load from Folder failed', res.message || 'Unknown error');
+      return;
+    }
+
+    const newColId = `col-${Date.now()}`;
+    const newCol: Collection = {
+      id: newColId,
+      name: res.name || 'Imported Collection',
+      folderPath,
+      requests: res.requests.map(r => ({ ...r, collectionId: newColId }))
+    };
+    setCollections(prev => [...prev, newCol]);
+    if (newCol.requests.length > 0) {
+      setActiveRequest(newCol.requests[0]);
+    }
+    setActiveTab('api');
+    handleRecordHistory(`Loaded from Folder: ${newCol.name}`, `${newCol.requests.length} requests from ${folderPath}`);
+  };
+
   return (
     <div className="nexus-app-container">
       {/* Top Application Header */}
@@ -455,6 +528,7 @@ export const App: React.FC = () => {
         environments={environments}
         activeEnv={activeEnv}
         onSelectEnv={setActiveEnv}
+        collections={collections}
       />
 
       {/* Main App Cockpit */}
@@ -481,6 +555,9 @@ export const App: React.FC = () => {
             onReorderRequests={handleReorderRequests}
             onMoveRequest={handleMoveRequest}
             onImportCollection={handleImportCollection}
+            onLinkCollectionFolder={handleLinkCollectionFolder}
+            onUnlinkCollectionFolder={handleUnlinkCollectionFolder}
+            onLoadCollectionFromFolder={handleLoadCollectionFromFolder}
             databases={databases}
             activeDb={activeDb}
             onSelectDb={(db) => {
@@ -555,6 +632,34 @@ export const App: React.FC = () => {
 
           {/* Active Canvas View */}
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            {activeTab === 'api' && !activeRequest && (
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '14px',
+                padding: '24px',
+                textAlign: 'center'
+              }}>
+                <Globe size={40} color="#334155" />
+                <div>
+                  <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
+                    No request selected
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-dim)', maxWidth: '360px' }}>
+                    Create a new request to start testing an API, or use the import icon in the sidebar
+                    to bring in an existing Postman or OpenAPI collection.
+                  </div>
+                </div>
+                <button onClick={handleNewRequest} className="btn-send" style={{ padding: '8px 18px' }}>
+                  <Plus size={14} />
+                  <span>New Request</span>
+                </button>
+              </div>
+            )}
+
             {activeTab === 'api' && activeRequest && (
               <ErrorBoundary fallbackTitle="API Studio Encountered an Error">
                 <ApiStudio

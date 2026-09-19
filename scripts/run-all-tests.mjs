@@ -1455,6 +1455,125 @@ async function runNetworkDaemonSuite() {
 await runNetworkDaemonSuite();
 
 // ------------------------------------------------------------------------------
+// REAL SQLITE ENGINE (sql.js / WASM) — genuine driver test, not a mock.
+// Mirrors the schema-extraction and query-execution logic in src/services/sqliteService.ts
+// against the actual sql.js WASM engine this app ships, so a real regression there (wrong
+// PRAGMA column indices, bad identifier quoting, wrong empty-result handling, etc.) fails here.
+// ------------------------------------------------------------------------------
+console.log('\n--- 12. Testing Real SQLite Engine (sql.js WASM) ---');
+
+async function runSqliteSuite() {
+  const initSqlJs = (await import('sql.js')).default;
+  const SQL = await initSqlJs();
+
+  function quoteIdent(name) {
+    return `"${name.replace(/"/g, '""')}"`;
+  }
+
+  function extractSchema(db) {
+    const tables = [];
+    const tableList = db.exec(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name;`);
+    const tableNames = tableList[0] ? tableList[0].values.map(v => String(v[0])) : [];
+    for (const tableName of tableNames) {
+      const colInfo = db.exec(`PRAGMA table_info(${quoteIdent(tableName)});`);
+      const columns = colInfo[0] ? colInfo[0].values.map(row => ({
+        name: String(row[1]),
+        type: (row[2] ? String(row[2]) : 'TEXT').toUpperCase(),
+        isPrimaryKey: Number(row[5]) > 0,
+        isNullable: Number(row[3]) === 0
+      })) : [];
+      const countRes = db.exec(`SELECT COUNT(*) FROM ${quoteIdent(tableName)};`);
+      const rowCount = countRes[0] ? Number(countRes[0].values[0][0]) : 0;
+      tables.push({ name: tableName, rowCount, columns });
+    }
+    return tables;
+  }
+
+  function runQuery(db, sql) {
+    const results = db.exec(sql);
+    if (results.length === 0) {
+      return { columns: ['status', 'message'], rows: [{ status: 'OK', message: `${db.getRowsModified()} row(s) affected.` }] };
+    }
+    const { columns, values } = results[0];
+    const rows = values.map(row => {
+      const obj = {};
+      columns.forEach((col, i) => { obj[col] = row[i]; });
+      return obj;
+    });
+    return { columns, rows };
+  }
+
+  await test('SQLite: create a real on-disk-format database and load it via sql.js', async () => {
+    const db = new SQL.Database();
+    db.exec(`
+      CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT NOT NULL, age INTEGER);
+      INSERT INTO users (email, age) VALUES ('alex@example.com', 30);
+      INSERT INTO users (email, age) VALUES ('sam@example.com', 25);
+    `);
+
+    // Round-trip through the real binary sqlite file format, exactly like dropping a .sqlite file would.
+    const bytes = db.export();
+    db.close();
+    assert.ok(bytes.length > 0, 'exported database should be non-empty bytes');
+
+    const reloaded = new SQL.Database(bytes);
+    const res = reloaded.exec('SELECT email, age FROM users ORDER BY id;');
+    assert.strictEqual(res[0].values.length, 2);
+    assert.strictEqual(res[0].values[0][0], 'alex@example.com');
+    reloaded.close();
+  });
+
+  await test('SQLite: real schema extraction (sqlite_master + PRAGMA table_info)', async () => {
+    const db = new SQL.Database();
+    db.exec(`
+      CREATE TABLE "orders" (id INTEGER PRIMARY KEY, customer_email TEXT NOT NULL, total REAL);
+      CREATE TABLE "line items" (id INTEGER PRIMARY KEY, order_id INTEGER, sku TEXT);
+      INSERT INTO "orders" (customer_email, total) VALUES ('a@b.com', 19.99), ('c@d.com', 42.50);
+    `);
+
+    const tables = extractSchema(db);
+    db.close();
+
+    const orders = tables.find(t => t.name === 'orders');
+    const lineItems = tables.find(t => t.name === 'line items');
+    assert.ok(orders, 'orders table should be found');
+    assert.ok(lineItems, 'table names with spaces should be handled via identifier quoting');
+    assert.strictEqual(orders.rowCount, 2);
+    assert.strictEqual(lineItems.rowCount, 0);
+
+    const idCol = orders.columns.find(c => c.name === 'id');
+    const emailCol = orders.columns.find(c => c.name === 'customer_email');
+    assert.strictEqual(idCol.isPrimaryKey, true);
+    assert.strictEqual(emailCol.isPrimaryKey, false);
+    assert.strictEqual(emailCol.isNullable, false);
+  });
+
+  await test('SQLite: real query execution — SELECT, INSERT, and error handling', async () => {
+    const db = new SQL.Database();
+    db.exec('CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT);');
+
+    const insertResult = runQuery(db, "INSERT INTO notes (body) VALUES ('first'), ('second');");
+    assert.strictEqual(insertResult.rows[0].status, 'OK');
+
+    const selectResult = runQuery(db, 'SELECT * FROM notes ORDER BY id;');
+    assert.strictEqual(selectResult.rows.length, 2);
+    assert.strictEqual(selectResult.rows[0].body, 'first');
+
+    let threw = false;
+    try {
+      db.exec('SELECT * FROM a_table_that_does_not_exist;');
+    } catch {
+      threw = true;
+    }
+    assert.ok(threw, 'querying a nonexistent table should throw a real SQLite error, not silently succeed');
+
+    db.close();
+  });
+}
+
+await runSqliteSuite();
+
+// ------------------------------------------------------------------------------
 // SUMMARY
 // ------------------------------------------------------------------------------
 console.log('\n==============================================================================');

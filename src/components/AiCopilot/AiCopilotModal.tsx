@@ -12,6 +12,7 @@ import {
   Key
 } from 'lucide-react';
 import { DatabaseConnection, TableSchema } from '../../types';
+import { secureGetItem, secureSetItem } from '../../utils/secureStorage';
 
 interface AiCopilotModalProps {
   isOpen: boolean;
@@ -36,7 +37,7 @@ export const AiCopilotModal: React.FC<AiCopilotModalProps> = ({
   const [provider, setProvider] = useState<'ollama' | 'openai' | 'anthropic'>('ollama');
   const [apiKey, setApiKey] = useState<string>(() => {
     try {
-      return localStorage.getItem('bapu_ai_api_key') || '';
+      return secureGetItem('bapu_ai_api_key') || '';
     } catch {
       return '';
     }
@@ -146,7 +147,42 @@ Instructions:
       }
     }
 
-    // 3. Smart Schema-Aware Deterministic Engine (0ms, 100% Offline)
+    // 3. Try Live Anthropic BYOK
+    if (provider === 'anthropic' && apiKey.trim()) {
+      try {
+        setProviderStatus('Connecting to Anthropic API...');
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey.trim(),
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model: 'claude-3-5-sonnet-20241022',
+            max_tokens: 1024,
+            system: systemPrompt,
+            messages: [{ role: 'user', content: prompt }]
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const content = data.content?.[0]?.text;
+          if (content) {
+            setGeneratedOutput(content.trim().replace(/^```[a-z]*\n/i, '').replace(/```$/, ''));
+            setProviderStatus('Generated via Claude 3.5 Sonnet 🤖');
+            setIsLoading(false);
+            return;
+          }
+        }
+      } catch {
+        // Fall back
+      }
+    }
+
+    // 4. Smart Schema-Aware Deterministic Engine (0ms, 100% Offline)
     setTimeout(() => {
       const p = prompt.toLowerCase();
       const currentTableName = selectedTable?.name || activeDb?.tables[0]?.name || 'records';
@@ -217,7 +253,7 @@ Instructions:
   const handleSaveApiKey = (key: string) => {
     setApiKey(key);
     try {
-      localStorage.setItem('bapu_ai_api_key', key);
+      secureSetItem('bapu_ai_api_key', key);
     } catch {}
   };
 
