@@ -17,7 +17,9 @@ import {
   Terminal,
   Zap,
   Copy,
-  AlertTriangle
+  AlertTriangle,
+  Trash2,
+  Lock
 } from 'lucide-react';
 import { DatabaseConnection, TableSchema, SqlScriptTab } from '../../types';
 import { SqliteDropZone } from './SqliteDropZone';
@@ -67,6 +69,26 @@ function getDefaultQueryForTable(dbType: string, table: TableSchema): string {
   return `SELECT * FROM ${table.name} LIMIT 25;`;
 }
 
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Inline grid editing writes a real UPDATE/DELETE targeted at a specific table, so it's only safe to
+// offer when the result on screen actually IS that table's rows unmodified — not a JOIN, aggregate, or
+// hand-edited query that merely happens to share column names.
+function isSimpleTableBrowse(dbType: string, lastSql: string, tableName: string): boolean {
+  if (!lastSql || !tableName) return false;
+  const trimmed = lastSql.trim();
+  if (dbType === 'mongodb') {
+    return new RegExp(`^${escapeRegExp(tableName)}\\s*\\.\\s*find\\s*\\(`, 'i').test(trimmed);
+  }
+  const lower = trimmed.toLowerCase().replace(/;+\s*$/, '');
+  if (!lower.startsWith('select')) return false;
+  if (lower.includes(' join ') || lower.includes('group by') || lower.includes('union')) return false;
+  const fromMatch = lower.match(/\bfrom\s+["`]?([a-z0-9_]+)["`]?/i);
+  return !!fromMatch && fromMatch[1].toLowerCase() === tableName.toLowerCase();
+}
+
 export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
   activeDb,
   onRecordHistory,
@@ -113,6 +135,17 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
   const [copiedPlan, setCopiedPlan] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
   const [lastExecutedSql, setLastExecutedSql] = useState<string>('');
+
+  // Data Grid inline editing state (edit cell / add row / delete rows)
+  const [editingCell, setEditingCell] = useState<{ rowKey: string; col: string } | null>(null);
+  const [editCellValue, setEditCellValue] = useState('');
+  const [isSavingCell, setIsSavingCell] = useState(false);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(new Set());
+  const [isAddRowOpen, setIsAddRowOpen] = useState(false);
+  const [newRowValues, setNewRowValues] = useState<Record<string, string>>({});
+  const [newRowJson, setNewRowJson] = useState('{\n  \n}');
+  const [rowMutationError, setRowMutationError] = useState<string | null>(null);
+  const [isDeletingRows, setIsDeletingRows] = useState(false);
 
   // Resizable schema sidebar state
   const [dbSidebarWidth, setDbSidebarWidth] = useState<number>(() => {
@@ -196,6 +229,7 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
         return updated;
       });
 
+      setLastExecutedSql(query);
       DatabaseService.executeQuery(safeDb, query).then(res => {
         if (res.success) {
           setQueryResult({
@@ -235,6 +269,13 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
       });
     }
   }, [safeDb.id, safeTables.length]);
+
+  // A freshly executed query invalidates any in-progress cell edit / row selection from the previous result.
+  useEffect(() => {
+    setEditingCell(null);
+    setRowMutationError(null);
+    setSelectedRowKeys(new Set());
+  }, [queryResult]);
 
   const handleSelectScriptTab = (tabId: string) => {
     const tab = scriptTabs.find(t => t.id === tabId);
@@ -377,10 +418,167 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
 
   const filteredRows = (queryResult.rows || []).filter(row => {
     if (!searchFilter) return true;
-    return Object.values(row || {}).some(val => 
+    return Object.values(row || {}).some(val =>
       String(val ?? '').toLowerCase().includes(searchFilter.toLowerCase())
     );
   });
+
+  // --- Data Grid inline editing eligibility & handlers ---------------------------------------
+
+  // SQLite is always a real, locally-loaded database (never the built-in demo/playground), so it's
+  // exempt from the "no host/connectionString" playground heuristic that otherwise flags it.
+  const isPlaygroundDb = safeDb.type !== 'sqlite' && Boolean(
+    safeDb.isDemoDb ||
+    safeDb.id === 'db-playground-analytics' ||
+    safeDb.id?.startsWith('db-demo') ||
+    safeDb.id === 'db-empty' ||
+    (!safeDb.connectionString && !(safeDb as any).host)
+  );
+
+  const editablePkColumns: string[] | null = (() => {
+    if (safeDb.type === 'redis' || !selectedTable) return null;
+    if (safeDb.type === 'mongodb') {
+      return queryResult.columns.includes('_id') ? ['_id'] : null;
+    }
+    const pkCols = (selectedTable.columns || []).filter(c => c.isPrimaryKey).map(c => c.name);
+    if (pkCols.length === 0 || !pkCols.every(c => queryResult.columns.includes(c))) return null;
+    return pkCols;
+  })();
+
+  const editingDisabledReason: string | null = (() => {
+    if (queryResult.error || queryResult.columns.length === 0) return null;
+    if (safeDb.type === 'redis') return 'Redis keyspace browsing has no row-based table to edit.';
+    if (isPlaygroundDb) return 'Read-only sample data — connect a real database to edit rows.';
+    if (!selectedTable) return 'Select a table from the sidebar to enable editing.';
+    if (!editablePkColumns) {
+      return safeDb.type === 'mongodb'
+        ? 'No _id column in this result — editing needs it.'
+        : 'No primary key detected on this table — editing is disabled to avoid updating the wrong row.';
+    }
+    if (!isSimpleTableBrowse(safeDb.type, lastExecutedSql, selectedTable.name)) {
+      return 'Editing is only available while browsing a single table, not a custom query/join/aggregate.';
+    }
+    return null;
+  })();
+
+  const isGridEditable = queryResult.columns.length > 0 && editingDisabledReason === null;
+
+  const getRowKey = (row: any): string => {
+    if (!editablePkColumns) return JSON.stringify(row);
+    return JSON.stringify(editablePkColumns.map(c => row[c]));
+  };
+
+  const getRowWhere = (row: any): Record<string, any> => {
+    const where: Record<string, any> = {};
+    (editablePkColumns || []).forEach(c => { where[c] = row[c]; });
+    return where;
+  };
+
+  const refreshGridAfterMutation = () => {
+    if (lastExecutedSql) handleExecuteSql(lastExecutedSql);
+  };
+
+  const commitCellEdit = async (row: any) => {
+    if (!editingCell || !selectedTable) return;
+    const { col } = editingCell;
+    const originalValue = row[col];
+    const raw = editCellValue;
+    if (String(originalValue ?? '') === raw) {
+      setEditingCell(null);
+      return;
+    }
+    // An emptied cell clears the value to NULL; otherwise the typed text is sent as-is and the
+    // driver/DB coerces it to the column's real type.
+    const newValue = raw === '' ? null : raw;
+
+    setIsSavingCell(true);
+    setRowMutationError(null);
+    const res = await DatabaseService.mutateRow(safeDb, selectedTable.name, 'update', { [col]: newValue }, getRowWhere(row));
+    setIsSavingCell(false);
+    setEditingCell(null);
+
+    if (!res.success) {
+      setRowMutationError(res.message || 'Update failed');
+      return;
+    }
+    onRecordHistory(`Updated row in ${selectedTable.name}`, `SET ${col} = ${raw === '' ? 'NULL' : raw}`);
+    refreshGridAfterMutation();
+  };
+
+  const handleAddRowSubmit = async () => {
+    if (!selectedTable) return;
+    setRowMutationError(null);
+
+    let values: Record<string, any> = {};
+    if (safeDb.type === 'mongodb') {
+      try {
+        values = JSON.parse(newRowJson);
+      } catch (err: any) {
+        setRowMutationError(`Invalid JSON: ${err.message}`);
+        return;
+      }
+    } else {
+      (selectedTable.columns || []).forEach(col => {
+        const raw = newRowValues[col.name];
+        if (raw !== undefined && raw !== '') {
+          values[col.name] = raw;
+        }
+      });
+    }
+
+    setIsSavingCell(true);
+    const res = await DatabaseService.mutateRow(safeDb, selectedTable.name, 'insert', values);
+    setIsSavingCell(false);
+
+    if (!res.success) {
+      setRowMutationError(res.message || 'Insert failed');
+      return;
+    }
+    onRecordHistory(`Inserted row into ${selectedTable.name}`, `${Object.keys(values).length} column(s) set`);
+    setIsAddRowOpen(false);
+    setNewRowValues({});
+    setNewRowJson('{\n  \n}');
+    refreshGridAfterMutation();
+  };
+
+  const toggleRowSelection = (key: string) => {
+    setSelectedRowKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleSelectAllRows = () => {
+    if (selectedRowKeys.size === filteredRows.length && filteredRows.length > 0) {
+      setSelectedRowKeys(new Set());
+    } else {
+      setSelectedRowKeys(new Set(filteredRows.map(getRowKey)));
+    }
+  };
+
+  const handleDeleteSelectedRows = async () => {
+    if (!selectedTable || selectedRowKeys.size === 0) return;
+    if (!window.confirm(`Delete ${selectedRowKeys.size} row(s) from ${selectedTable.name}? This cannot be undone.`)) return;
+
+    setIsDeletingRows(true);
+    setRowMutationError(null);
+    const rowsToDelete = filteredRows.filter(row => selectedRowKeys.has(getRowKey(row)));
+    let failures = 0;
+    for (const row of rowsToDelete) {
+      const res = await DatabaseService.mutateRow(safeDb, selectedTable.name, 'delete', {}, getRowWhere(row));
+      if (!res.success) failures += 1;
+    }
+    setIsDeletingRows(false);
+    setSelectedRowKeys(new Set());
+
+    if (failures > 0) {
+      setRowMutationError(`${failures} of ${rowsToDelete.length} row(s) failed to delete.`);
+    } else {
+      onRecordHistory(`Deleted ${rowsToDelete.length} row(s) from ${selectedTable.name}`, '');
+    }
+    refreshGridAfterMutation();
+  };
 
   return (
     <div className="db-layout" style={{ userSelect: isResizingDb ? 'none' : 'auto' }}>
@@ -412,9 +610,11 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
           </button>
         </div>
 
-        {/* Local SQLite Drag and Drop Zone */}
+        {/* Local SQLite Drag and Drop Zone — full-size call-to-action only while there's no
+            active connection yet; once one exists it collapses to a small link so it stops
+            permanently eating space above the real Tables list. */}
         {onDatabaseLoaded && (
-          <SqliteDropZone onDatabaseLoaded={onDatabaseLoaded} />
+          <SqliteDropZone onDatabaseLoaded={onDatabaseLoaded} compact={safeDb.id !== 'db-empty'} />
         )}
 
         <div className="sidebar-section-header">Tables ({safeTables.length})</div>
@@ -558,7 +758,7 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
                       style={{
                         background: 'var(--bg-main)',
                         border: '1px solid var(--border-subtle)',
-                        color: '#fff',
+                        color: 'var(--text-main)',
                         fontSize: '11px',
                         padding: '1px 4px',
                         borderRadius: '2px',
@@ -824,7 +1024,7 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
                   placeholder="Filter table rows..."
-                  style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '11px', outline: 'none', width: '120px' }}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', fontSize: '11px', outline: 'none', width: '120px' }}
                 />
               </div>
 
@@ -832,9 +1032,64 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
                 <Download size={12} />
                 <span>Export CSV</span>
               </button>
+
+              {isGridEditable ? (
+                <>
+                  <button
+                    onClick={() => { setNewRowValues({}); setNewRowJson('{\n  \n}'); setRowMutationError(null); setIsAddRowOpen(true); }}
+                    className="btn-secondary"
+                    style={{ fontSize: '11px', padding: '3px 8px', borderColor: 'rgba(16, 185, 129, 0.4)', color: '#6ee7b7' }}
+                  >
+                    <Plus size={12} />
+                    <span>Add Row</span>
+                  </button>
+
+                  {selectedRowKeys.size > 0 && (
+                    <button
+                      onClick={handleDeleteSelectedRows}
+                      disabled={isDeletingRows}
+                      className="btn-secondary"
+                      style={{ fontSize: '11px', padding: '3px 8px', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#fca5a5' }}
+                    >
+                      <Trash2 size={12} />
+                      <span>{isDeletingRows ? 'Deleting...' : `Delete Selected (${selectedRowKeys.size})`}</span>
+                    </button>
+                  )}
+                </>
+              ) : editingDisabledReason && queryResult.columns.length > 0 ? (
+                <span
+                  title={editingDisabledReason}
+                  style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', color: 'var(--text-dim)', padding: '3px 8px' }}
+                >
+                  <Lock size={11} />
+                  <span>Read-only</span>
+                </span>
+              ) : null}
             </div>
           )}
         </div>
+
+        {/* Row Mutation Error (edit / add / delete) */}
+        {rowMutationError && (
+          <div style={{
+            margin: '8px 12px 0',
+            padding: '8px 12px',
+            background: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: '11px',
+            color: '#f87171',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px'
+          }}>
+            <span>{rowMutationError}</span>
+            <button onClick={() => setRowMutationError(null)} className="btn-secondary" style={{ fontSize: '10px', padding: '2px 6px' }}>
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Error Diagnostic Alert */}
         {queryResult.error && (
@@ -881,27 +1136,99 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
               <table className="data-grid-table">
                 <thead>
                   <tr>
-                    {queryResult.columns.map(col => (
-                      <th key={col}>{col}</th>
-                    ))}
+                    {isGridEditable && (
+                      <th style={{ width: '28px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedRowKeys.size > 0 && selectedRowKeys.size === filteredRows.length}
+                          onChange={toggleSelectAllRows}
+                          title="Select all rows"
+                        />
+                      </th>
+                    )}
+                    {queryResult.columns.map(col => {
+                      const isPk = (editablePkColumns || []).includes(col);
+                      return (
+                        <th key={col}>
+                          {col}
+                          {isPk && <Key size={10} style={{ marginLeft: '4px', opacity: 0.6, verticalAlign: 'middle' }} />}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRows.map((row, rIdx) => (
-                    <tr key={rIdx}>
-                      {queryResult.columns.map(col => (
-                        <td key={col}>
-                          {row[col] === null || row[col] === undefined ? (
-                            <span style={{ opacity: 0.5, fontStyle: 'italic' }}>NULL</span>
-                          ) : typeof row[col] === 'object' ? (
-                            JSON.stringify(row[col])
-                          ) : (
-                            String(row[col])
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                  {filteredRows.map((row, rIdx) => {
+                    const rowKey = getRowKey(row);
+                    return (
+                      <tr key={rIdx}>
+                        {isGridEditable && (
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={selectedRowKeys.has(rowKey)}
+                              onChange={() => toggleRowSelection(rowKey)}
+                            />
+                          </td>
+                        )}
+                        {queryResult.columns.map(col => {
+                          const isPk = (editablePkColumns || []).includes(col);
+                          const cellEditable = isGridEditable && !isPk;
+                          const isEditingThisCell = editingCell && editingCell.rowKey === rowKey && editingCell.col === col;
+
+                          if (isEditingThisCell) {
+                            return (
+                              <td key={col} style={{ padding: 0 }}>
+                                <input
+                                  autoFocus
+                                  value={editCellValue}
+                                  disabled={isSavingCell}
+                                  onChange={(e) => setEditCellValue(e.target.value)}
+                                  onBlur={() => commitCellEdit(row)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') { e.preventDefault(); commitCellEdit(row); }
+                                    if (e.key === 'Escape') { e.preventDefault(); setEditingCell(null); }
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    boxSizing: 'border-box',
+                                    background: 'var(--bg-input)',
+                                    border: '1px solid var(--border-focus)',
+                                    color: 'var(--text-main)',
+                                    fontSize: 'inherit',
+                                    fontFamily: 'inherit',
+                                    padding: '6px 10px',
+                                    outline: 'none'
+                                  }}
+                                />
+                              </td>
+                            );
+                          }
+
+                          return (
+                            <td
+                              key={col}
+                              onDoubleClick={() => {
+                                if (!cellEditable) return;
+                                setEditingCell({ rowKey, col });
+                                setEditCellValue(row[col] === null || row[col] === undefined ? '' : (typeof row[col] === 'object' ? JSON.stringify(row[col]) : String(row[col])));
+                              }}
+                              title={cellEditable ? 'Double-click to edit' : isPk ? 'Primary key — not editable' : undefined}
+                              style={cellEditable ? { cursor: 'text' } : undefined}
+                            >
+                              {row[col] === null || row[col] === undefined ? (
+                                <span style={{ opacity: 0.5, fontStyle: 'italic' }}>NULL</span>
+                              ) : typeof row[col] === 'object' ? (
+                                JSON.stringify(row[col])
+                              ) : (
+                                String(row[col])
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -969,7 +1296,7 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
 
             {/* Executed Statement Block */}
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(15, 21, 34, 0.7)', padding: '8px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-panel-header)', padding: '8px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
                 <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)' }}>Executed SQL / Command</span>
                 <button
                   onClick={() => {
@@ -1013,6 +1340,90 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
           setIsEditModalOpen(false);
         }}
       />
+
+      {/* Add Row Modal — a plain column form for SQL engines, a JSON document editor for MongoDB */}
+      {isAddRowOpen && selectedTable && (
+        <div className="modal-overlay" onClick={() => setIsAddRowOpen(false)}>
+          <div className="modal-content" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-main)' }}>
+                Add Row — {selectedTable.name}
+              </h3>
+              <button onClick={() => setIsAddRowOpen(false)} className="btn-secondary" style={{ padding: '4px' }}>
+                <X size={14} />
+              </button>
+            </div>
+
+            {rowMutationError && (
+              <div style={{ marginBottom: '12px', padding: '8px 12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 'var(--radius-sm)', fontSize: '11px', color: '#f87171' }}>
+                {rowMutationError}
+              </div>
+            )}
+
+            {safeDb.type === 'mongodb' ? (
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '6px' }}>
+                  New document (JSON) — _id is generated automatically
+                </label>
+                <textarea
+                  value={newRowJson}
+                  onChange={(e) => setNewRowJson(e.target.value)}
+                  rows={10}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    background: 'var(--bg-input)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: 'var(--text-main)',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '12px',
+                    padding: '10px',
+                    resize: 'vertical'
+                  }}
+                />
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '360px', overflowY: 'auto' }}>
+                {(selectedTable.columns || []).map(col => (
+                  <div key={col.name}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>
+                      {col.name}
+                      <span style={{ opacity: 0.6 }}>({col.type}{col.isPrimaryKey ? ', PK' : ''}{col.isNullable ? '' : ', required'})</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newRowValues[col.name] ?? ''}
+                      onChange={(e) => setNewRowValues(prev => ({ ...prev, [col.name]: e.target.value }))}
+                      placeholder={col.isPrimaryKey ? 'Leave blank to auto-generate, if supported' : col.isNullable ? 'NULL' : ''}
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        background: 'var(--bg-input)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-sm)',
+                        color: 'var(--text-main)',
+                        fontSize: '12px',
+                        padding: '7px 10px',
+                        outline: 'none'
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '18px' }}>
+              <button onClick={() => setIsAddRowOpen(false)} className="btn-secondary">
+                Cancel
+              </button>
+              <button onClick={handleAddRowSubmit} disabled={isSavingCell} className="btn-send" style={{ padding: '7px 16px' }}>
+                {isSavingCell ? 'Inserting...' : 'Insert Row'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

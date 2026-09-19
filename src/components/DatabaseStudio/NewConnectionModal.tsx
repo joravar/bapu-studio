@@ -356,7 +356,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Database size={20} color="#10b981" />
-            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#fff' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-main)' }}>
               {initialConnection ? `Edit Database: ${initialConnection.name}` : 'Add Database Connection'}
             </h2>
           </div>
@@ -462,7 +462,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                   border: '1px solid var(--border-subtle)',
                   borderRadius: 'var(--radius-md)',
                   padding: '8px 12px',
-                  color: '#fff'
+                  color: 'var(--text-main)'
                 }}
               />
             </div>
@@ -500,7 +500,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                     border: '1px solid var(--border-subtle)',
                     borderRadius: 'var(--radius-md)',
                     padding: '8px 12px',
-                    color: '#fff',
+                    color: 'var(--text-main)',
                     fontFamily: 'var(--font-mono)',
                     fontSize: '11px'
                   }}
@@ -510,8 +510,8 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                 {host && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px', fontSize: '10px', color: 'var(--text-dim)' }}>
                     <span className="method-pill method-GET" style={{ fontSize: '9px', textTransform: 'uppercase' }}>{type}</span>
-                    <span>Host: <strong style={{ color: '#fff' }}>{host}</strong></span>
-                    {port && <span>Port: <strong style={{ color: '#fff' }}>{port}</strong></span>}
+                    <span>Host: <strong style={{ color: 'var(--text-main)' }}>{host}</strong></span>
+                    {port && <span>Port: <strong style={{ color: 'var(--text-main)' }}>{port}</strong></span>}
                     {database && <span>DB: <strong style={{ color: '#38bdf8' }}>{database}</strong></span>}
                     {username && <span>User: <strong style={{ color: '#a855f7' }}>{username}</strong></span>}
                   </div>
@@ -540,7 +540,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                           border: '1px solid var(--border-subtle)',
                           borderRadius: 'var(--radius-md)',
                           padding: '8px 12px',
-                          color: '#fff',
+                          color: 'var(--text-main)',
                           fontFamily: 'var(--font-mono)'
                         }}
                       />
@@ -561,7 +561,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                           border: '1px solid var(--border-subtle)',
                           borderRadius: 'var(--radius-md)',
                           padding: '8px 12px',
-                          color: '#fff',
+                          color: 'var(--text-main)',
                           fontFamily: 'var(--font-mono)'
                         }}
                       />
@@ -586,7 +586,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                         border: '1px solid var(--border-subtle)',
                         borderRadius: 'var(--radius-md)',
                         padding: '8px 12px',
-                        color: '#fff',
+                        color: 'var(--text-main)',
                         fontFamily: 'var(--font-mono)'
                       }}
                     />
@@ -608,7 +608,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                           border: '1px solid var(--border-subtle)',
                           borderRadius: 'var(--radius-md)',
                           padding: '8px 12px',
-                          color: '#fff',
+                          color: 'var(--text-main)',
                           fontFamily: 'var(--font-mono)'
                         }}
                       />
@@ -633,7 +633,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                         border: '1px solid var(--border-subtle)',
                         borderRadius: 'var(--radius-md)',
                         padding: '8px 12px',
-                        color: '#fff'
+                        color: 'var(--text-main)'
                       }}
                     />
                   </div>
@@ -653,7 +653,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                       onChange={(e) => setSsl(e.target.checked)}
                       style={{ width: '14px', height: '14px', accentColor: '#10b981', cursor: 'pointer' }}
                     />
-                    <label htmlFor="db-ssl-toggle" style={{ fontSize: '11px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <label htmlFor="db-ssl-toggle" style={{ fontSize: '11px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <Shield size={12} color="#10b981" />
                       <span>Enable SSL / TLS Encryption (Required for Neon, Supabase, Cloud DBs)</span>
                     </label>
@@ -708,7 +708,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                           border: '1px solid var(--border-subtle)',
                           borderRadius: 'var(--radius-sm)',
                           padding: '6px 8px',
-                          color: '#fff',
+                          color: 'var(--text-main)',
                           fontFamily: 'var(--font-mono)',
                           fontSize: '10px',
                           resize: 'vertical'
@@ -732,7 +732,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                             border: '1px solid var(--border-subtle)',
                             borderRadius: 'var(--radius-sm)',
                             padding: '6px 8px',
-                            color: '#fff',
+                            color: 'var(--text-main)',
                             fontFamily: 'var(--font-mono)',
                             fontSize: '10px',
                             resize: 'vertical'
@@ -754,7 +754,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                             border: '1px solid var(--border-subtle)',
                             borderRadius: 'var(--radius-sm)',
                             padding: '6px 8px',
-                            color: '#fff',
+                            color: 'var(--text-main)',
                             fontFamily: 'var(--font-mono)',
                             fontSize: '10px',
                             resize: 'vertical'
@@ -791,7 +791,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                     onChange={(e) => setSshEnabled(e.target.checked)}
                     style={{ width: '14px', height: '14px', accentColor: '#60a5fa', cursor: 'pointer' }}
                   />
-                  <label htmlFor="ssh-tunnel-toggle" style={{ fontSize: '11px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <label htmlFor="ssh-tunnel-toggle" style={{ fontSize: '11px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <Terminal size={12} color="#60a5fa" />
                     <span>Connect via SSH Tunnel (Bastion Host)</span>
                   </label>
@@ -829,7 +829,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                             border: '1px solid var(--border-subtle)',
                             borderRadius: 'var(--radius-sm)',
                             padding: '6px 8px',
-                            color: '#fff',
+                            color: 'var(--text-main)',
                             fontFamily: 'var(--font-mono)',
                             fontSize: '11px'
                           }}
@@ -851,7 +851,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                             border: '1px solid var(--border-subtle)',
                             borderRadius: 'var(--radius-sm)',
                             padding: '6px 8px',
-                            color: '#fff',
+                            color: 'var(--text-main)',
                             fontFamily: 'var(--font-mono)',
                             fontSize: '11px'
                           }}
@@ -875,7 +875,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                           border: '1px solid var(--border-subtle)',
                           borderRadius: 'var(--radius-sm)',
                           padding: '6px 8px',
-                          color: '#fff',
+                          color: 'var(--text-main)',
                           fontFamily: 'var(--font-mono)',
                           fontSize: '11px'
                         }}
@@ -921,7 +921,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                               border: '1px solid var(--border-subtle)',
                               borderRadius: 'var(--radius-sm)',
                               padding: '6px 8px',
-                              color: '#fff',
+                              color: 'var(--text-main)',
                               fontFamily: 'var(--font-mono)',
                               fontSize: '10px',
                               resize: 'vertical'
@@ -944,7 +944,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                               border: '1px solid var(--border-subtle)',
                               borderRadius: 'var(--radius-sm)',
                               padding: '6px 8px',
-                              color: '#fff'
+                              color: 'var(--text-main)'
                             }}
                           />
                         </div>
@@ -966,7 +966,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                             border: '1px solid var(--border-subtle)',
                             borderRadius: 'var(--radius-sm)',
                             padding: '6px 8px',
-                            color: '#fff'
+                            color: 'var(--text-main)'
                           }}
                         />
                       </div>

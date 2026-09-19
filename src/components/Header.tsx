@@ -1,25 +1,32 @@
 import React from 'react';
 import {
-  Zap,
   ChevronDown,
   Heart,
   FolderOpen,
-  Search
+  Search,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { Collection, Environment } from '../types';
+import { Theme } from '../utils/theme';
+import logoUrl from '../assets/logo.png';
 
 interface HeaderProps {
   environments: Environment[];
   activeEnv: Environment;
   onSelectEnv: (env: Environment) => void;
   collections: Collection[];
+  theme: Theme;
+  onToggleTheme: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   environments,
   activeEnv,
   onSelectEnv,
-  collections
+  collections,
+  theme,
+  onToggleTheme
 }) => {
   const requestCount = collections.reduce((sum, c) => sum + c.requests.length, 0);
   return (
@@ -27,9 +34,7 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Left: Brand Identity & Git Status */}
       <div className="header-left">
         <div className="brand-badge">
-          <div className="brand-icon">
-            <Zap size={15} />
-          </div>
+          <img src={logoUrl} alt="Bapu Studio" className="brand-logo-img" />
           <span>Bapu Studio</span>
           <span className="oss-tag">AGPLv3</span>
         </div>
@@ -58,7 +63,7 @@ export const Header: React.FC<HeaderProps> = ({
             style={{ appearance: 'none', paddingRight: '26px', outline: 'none' }}
           >
             {environments.map(env => (
-              <option key={env.id} value={env.id} style={{ background: '#0f1522', color: '#fff' }}>
+              <option key={env.id} value={env.id} style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>
                 🟢 {env.name}
               </option>
             ))}
@@ -93,7 +98,26 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right: GitHub Sponsors & Window Controls */}
       <div className="header-right">
-        <a 
+        <button
+          onClick={onToggleTheme}
+          title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '28px',
+            height: '28px',
+            background: 'var(--bg-input)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            color: 'var(--text-muted)',
+            cursor: 'pointer'
+          }}
+        >
+          {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+        </button>
+
+        <a
           href="https://github.com/sponsors/joravar"
           target="_blank"
           rel="noopener noreferrer"

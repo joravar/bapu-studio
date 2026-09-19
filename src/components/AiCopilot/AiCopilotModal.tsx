@@ -265,7 +265,7 @@ Instructions:
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Sparkles size={18} color="#10b981" />
-              <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#fff' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-main)' }}>
                 Bapu AI Copilot (Privacy-First)
               </h2>
             </div>
@@ -326,7 +326,7 @@ Instructions:
               value={apiKey}
               onChange={(e) => handleSaveApiKey(e.target.value)}
               placeholder={`Enter your ${provider === 'openai' ? 'OpenAI (sk-...)' : 'Anthropic'} API key...`}
-              style={{ flex: 1, background: 'transparent', border: 'none', color: '#fff', fontSize: '11px', outline: 'none', fontFamily: 'var(--font-mono)' }}
+              style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text-main)', fontSize: '11px', outline: 'none', fontFamily: 'var(--font-mono)' }}
             />
           </div>
         )}
@@ -344,7 +344,7 @@ Instructions:
               border: '1px solid var(--border-subtle)',
               borderRadius: 'var(--radius-md)',
               padding: '8px 12px',
-              color: '#fff'
+              color: 'var(--text-main)'
             }}
             onKeyDown={(e) => { if (e.key === 'Enter') handleGenerate(); }}
           />

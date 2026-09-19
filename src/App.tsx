@@ -18,6 +18,7 @@ import { Globe, Database, KeyRound, Radio, Sparkles, X, Plus } from 'lucide-reac
 import { DatabaseService } from './services/databaseService';
 import { CollectionSyncService } from './services/collectionSyncService';
 import { secureGetItem, secureSetItem } from './utils/secureStorage';
+import { applyTheme, getStoredTheme, Theme } from './utils/theme';
 
 export function sanitizeDatabase(db: any): DatabaseConnection {
   if (!db || typeof db !== 'object') {
@@ -63,6 +64,10 @@ export function sanitizeDatabase(db: any): DatabaseConnection {
 export const App: React.FC = () => {
   // Navigation & Workspace State with LocalStorage Persistence
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('api');
+
+  const [theme, setTheme] = useState<Theme>(() => getStoredTheme());
+  useEffect(() => { applyTheme(theme); }, [theme]);
+  const handleToggleTheme = () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
 
   const [collections, setCollections] = useState<Collection[]>(() => {
     try {
@@ -529,6 +534,8 @@ export const App: React.FC = () => {
         activeEnv={activeEnv}
         onSelectEnv={setActiveEnv}
         collections={collections}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
       />
 
       {/* Main App Cockpit */}

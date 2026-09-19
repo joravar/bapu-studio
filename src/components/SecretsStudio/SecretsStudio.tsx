@@ -77,7 +77,7 @@ export const SecretsStudio: React.FC<SecretsStudioProps> = ({
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <FolderLock size={20} color="#3b82f6" />
-            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#fff' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-main)' }}>
               Environment & Secrets Matrix
             </h2>
           </div>

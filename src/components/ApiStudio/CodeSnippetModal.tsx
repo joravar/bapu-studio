@@ -46,7 +46,7 @@ export const CodeSnippetModal: React.FC<CodeSnippetModalProps> = ({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Code2 size={20} color="#3b82f6" />
-            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#fff' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-main)' }}>
               Generate Client Code
             </h2>
           </div>

@@ -50,6 +50,9 @@
   --status-4xx: #f59e0b;
   --status-5xx: #ef4444;
 
+  /* Sub-panel header/toolbar strip (result grid toolbar, request/response tab bars) */
+  --bg-panel-header: rgba(15, 21, 34, 0.6);
+
   /* Elevation Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 12px -1px rgba(0, 0, 0, 0.5);
@@ -61,6 +64,34 @@
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
+}
+
+/* Light theme — applied by the Header's theme toggle via document.documentElement[data-theme].
+   Only surface colors (backgrounds, borders, text, shadows) are redefined; the semantic accent
+   colors (method badges, status codes, brand blue) stay the same in both themes since they were
+   picked to read clearly against either a dark or a light neutral background. */
+:root[data-theme='light'] {
+  --bg-app: #f4f6f9;
+  --bg-sidebar: #eef1f6;
+  --bg-card: #ffffff;
+  --bg-card-hover: #eef2f7;
+  --bg-input: #ffffff;
+  --bg-header: rgba(255, 255, 255, 0.9);
+
+  --border-subtle: #e1e6ed;
+  --border-active: #c7cfdb;
+
+  --bg-panel-header: rgba(226, 232, 240, 0.6);
+
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --text-dim: #7c8aa0;
+  --text-inverse: #ffffff;
+
+  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 12px -1px rgba(15, 23, 42, 0.10);
+  --shadow-lg: 0 10px 25px -3px rgba(15, 23, 42, 0.14);
+  --shadow-popup: 0 20px 40px -5px rgba(15, 23, 42, 0.18), 0 0 0 1px var(--border-subtle);
 }
 
 /* Reset & Base Setup */
@@ -143,19 +174,15 @@ html, body, #root {
   font-weight: 700;
   font-size: 14px;
   letter-spacing: -0.02em;
-  color: #fff;
+  color: var(--text-main);
 }
 
-.brand-icon {
+.brand-logo-img {
   width: 24px;
   height: 24px;
-  background: var(--accent-gradient);
   border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
   box-shadow: 0 2px 8px var(--accent-glow);
+  flex-shrink: 0;
 }
 
 .oss-tag {
@@ -347,7 +374,7 @@ html, body, #root {
 
 .sidebar-item.active {
   background-color: var(--bg-card-hover);
-  color: #fff;
+  color: var(--text-main);
   border-left: 2px solid var(--accent-primary);
 }
 
@@ -533,7 +560,7 @@ html, body, #root {
   row-gap: 4px;
   min-height: 36px;
   padding: 6px 12px;
-  background-color: rgba(15, 21, 34, 0.6);
+  background-color: var(--bg-panel-header);
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -790,7 +817,7 @@ html, body, #root {
 .pricing-price {
   font-size: 28px;
   font-weight: 800;
-  color: #fff;
+  color: var(--text-main);
   margin: 10px 0 16px;
 }
 

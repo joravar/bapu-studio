@@ -82,6 +82,41 @@ function getPgConfig(config, connectOverride) {
   };
 }
 
+// ---- verbatim copy of the postgres branch of db:mutate-row from electron-main.cjs ----
+function buildMutateRowSql(table, op, values, where) {
+  const quoteIdent = (id) => `"${String(id).replace(/"/g, '""')}"`;
+  let sql, params;
+
+  if (op === 'insert') {
+    const cols = Object.keys(values);
+    params = cols.map(c => values[c]);
+    sql = `INSERT INTO ${quoteIdent(table)} (${cols.map(quoteIdent).join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')})`;
+  } else if (op === 'update') {
+    const setCols = Object.keys(values);
+    params = setCols.map(c => values[c]);
+    const setClause = setCols.map((c, i) => `${quoteIdent(c)} = $${i + 1}`).join(', ');
+    let paramIdx = setCols.length;
+    const whereClause = Object.keys(where).map(c => {
+      if (where[c] === null) return `${quoteIdent(c)} IS NULL`;
+      paramIdx += 1;
+      params.push(where[c]);
+      return `${quoteIdent(c)} = $${paramIdx}`;
+    }).join(' AND ');
+    sql = `UPDATE ${quoteIdent(table)} SET ${setClause} WHERE ${whereClause}`;
+  } else if (op === 'delete') {
+    params = [];
+    let paramIdx = 0;
+    const whereClause = Object.keys(where).map(c => {
+      if (where[c] === null) return `${quoteIdent(c)} IS NULL`;
+      paramIdx += 1;
+      params.push(where[c]);
+      return `${quoteIdent(c)} = $${paramIdx}`;
+    }).join(' AND ');
+    sql = `DELETE FROM ${quoteIdent(table)} WHERE ${whereClause}`;
+  }
+  return { sql, params };
+}
+
 const PG_PORT = 15544;
 const DATA_DIR = path.join(__dirname, '.tmp-pg-test-data');
 fs.rmSync(DATA_DIR, { recursive: true, force: true });
@@ -162,6 +197,49 @@ try {
     const planText = res.rows.map(r => Object.values(r)[0]).join('\n');
     assert.ok(/Scan/.test(planText), 'should contain a real Postgres plan node (e.g. Seq Scan)');
     assert.ok(/actual time/.test(planText), 'ANALYZE should include real actual-time timing, not a canned string');
+    await client.end();
+  });
+
+  await test('Data Grid row insert/update/delete — real parameterized mutation against Postgres', async () => {
+    const client = new pg.Client(getPgConfig(baseConfig));
+    await client.connect();
+
+    const ins = buildMutateRowSql('accounts', 'insert', { email: 'grid@test.com', balance_cents: 750 });
+    await client.query(ins.sql, ins.params);
+    const afterInsert = await client.query('SELECT id, balance_cents FROM accounts WHERE email = $1', ['grid@test.com']);
+    assert.strictEqual(afterInsert.rows.length, 1, 'insert should create exactly one row');
+    const newId = afterInsert.rows[0].id;
+
+    const upd = buildMutateRowSql('accounts', 'update', { balance_cents: 999 }, { id: newId });
+    const updRes = await client.query(upd.sql, upd.params);
+    assert.strictEqual(updRes.rowCount, 1, 'update should affect exactly the targeted row');
+    const afterUpdate = await client.query('SELECT balance_cents FROM accounts WHERE id = $1', [newId]);
+    assert.strictEqual(afterUpdate.rows[0].balance_cents, 999);
+
+    const del = buildMutateRowSql('accounts', 'delete', {}, { id: newId });
+    const delRes = await client.query(del.sql, del.params);
+    assert.strictEqual(delRes.rowCount, 1, 'delete should remove exactly the targeted row');
+    const afterDelete = await client.query('SELECT * FROM accounts WHERE id = $1', [newId]);
+    assert.strictEqual(afterDelete.rows.length, 0);
+
+    await client.end();
+  });
+
+  await test('Data Grid mutation binds values as real query parameters (SQL injection is inert)', async () => {
+    const client = new pg.Client(getPgConfig(baseConfig));
+    await client.connect();
+
+    const maliciousEmail = "x'); DROP TABLE accounts; --";
+    const ins = buildMutateRowSql('accounts', 'insert', { email: maliciousEmail, balance_cents: 1 });
+    await client.query(ins.sql, ins.params);
+
+    const tableStillExists = await client.query(`SELECT to_regclass('public.accounts') as t;`);
+    assert.ok(tableStillExists.rows[0].t, 'accounts table must still exist — the malicious string was bound as data, not executed as SQL');
+
+    const stored = await client.query('SELECT email FROM accounts WHERE balance_cents = 1');
+    assert.strictEqual(stored.rows[0].email, maliciousEmail, 'the literal string should be stored as-is, not interpreted');
+
+    await client.query('DELETE FROM accounts WHERE balance_cents = 1');
     await client.end();
   });
 

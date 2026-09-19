@@ -24,6 +24,13 @@ function quoteIdent(name: string): string {
   return `"${name.replace(/"/g, '""')}"`;
 }
 
+// sql.js's exec() returns [] for BOTH a write statement and a read query matching zero rows, so the
+// caller has to tell those apart itself to avoid reporting a genuinely empty SELECT as a fake "OK".
+function isReadQuery(sql: string): boolean {
+  const trimmed = sql.trim().replace(/^(--[^\n]*\n|\/\*[\s\S]*?\*\/)\s*/g, '').toUpperCase();
+  return /^(SELECT|PRAGMA|EXPLAIN|WITH)\b/.test(trimmed);
+}
+
 function extractSchema(db: Database): TableSchema[] {
   const tables: TableSchema[] = [];
   const tableList = db.exec(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name;`);
@@ -104,6 +111,12 @@ export const SqliteService = {
       const executionTimeMs = Math.round(performance.now() - startTime);
 
       if (results.length === 0) {
+        // sql.js's exec() returns [] both for a write statement AND for a read query that legitimately
+        // matched zero rows — those need different, honest responses: a real "0 rows" result for the
+        // latter (with real column names for the grid), not a fabricated "OK, N row(s) affected".
+        if (isReadQuery(sql)) {
+          return { success: true, columns: [], rows: [], rowCount: 0, executionTimeMs };
+        }
         const rowsModified = db.getRowsModified();
         return {
           success: true,
@@ -132,6 +145,41 @@ export const SqliteService = {
         executionTimeMs: Math.round(performance.now() - startTime),
         message: err.message || 'SQLite query execution error'
       };
+    }
+  },
+
+  mutateRow(dbId: string, table: string, op: 'insert' | 'update' | 'delete', values: Record<string, any> = {}, where: Record<string, any> = {}): { success: boolean; rowsAffected?: number; message?: string } {
+    const db = liveDatabases.get(dbId);
+    if (!db) {
+      return { success: false, message: 'This SQLite database is not loaded in the current session — drag & drop the file again to reconnect.' };
+    }
+
+    try {
+      let sql: string;
+      let params: any[];
+
+      if (op === 'insert') {
+        const cols = Object.keys(values);
+        params = cols.map(c => values[c]);
+        sql = `INSERT INTO ${quoteIdent(table)} (${cols.map(quoteIdent).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`;
+      } else if (op === 'update') {
+        const setCols = Object.keys(values);
+        const whereCols = Object.keys(where);
+        params = [...setCols.map(c => values[c]), ...whereCols.filter(c => where[c] !== null).map(c => where[c])];
+        const setClause = setCols.map(c => `${quoteIdent(c)} = ?`).join(', ');
+        const whereClause = whereCols.map(c => where[c] === null ? `${quoteIdent(c)} IS NULL` : `${quoteIdent(c)} = ?`).join(' AND ');
+        sql = `UPDATE ${quoteIdent(table)} SET ${setClause} WHERE ${whereClause}`;
+      } else {
+        const whereCols = Object.keys(where);
+        params = whereCols.filter(c => where[c] !== null).map(c => where[c]);
+        const whereClause = whereCols.map(c => where[c] === null ? `${quoteIdent(c)} IS NULL` : `${quoteIdent(c)} = ?`).join(' AND ');
+        sql = `DELETE FROM ${quoteIdent(table)} WHERE ${whereClause}`;
+      }
+
+      db.run(sql, params);
+      return { success: true, rowsAffected: db.getRowsModified() };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'SQLite row mutation error' };
     }
   },
 

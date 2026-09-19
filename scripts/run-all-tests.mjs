@@ -1489,9 +1489,18 @@ async function runSqliteSuite() {
     return tables;
   }
 
+  // Mirrors sqliteService.ts's executeQuery: sql.js's exec() returns [] both for a write statement
+  // and for a read query that legitimately matched zero rows, so those must be told apart here too.
+  function isReadQuery(sql) {
+    return /^(SELECT|PRAGMA|EXPLAIN|WITH)\b/i.test(sql.trim());
+  }
+
   function runQuery(db, sql) {
     const results = db.exec(sql);
     if (results.length === 0) {
+      if (isReadQuery(sql)) {
+        return { columns: [], rows: [] };
+      }
       return { columns: ['status', 'message'], rows: [{ status: 'OK', message: `${db.getRowsModified()} row(s) affected.` }] };
     }
     const { columns, values } = results[0];
@@ -1566,6 +1575,86 @@ async function runSqliteSuite() {
       threw = true;
     }
     assert.ok(threw, 'querying a nonexistent table should throw a real SQLite error, not silently succeed');
+
+    db.close();
+  });
+
+  await test('SQLite: a SELECT matching zero rows reports a real empty result, not a fabricated "OK"', async () => {
+    // sql.js's exec() returns [] for a zero-row SELECT the same way it does for a write statement —
+    // a genuine trap this app must not fall into (it would otherwise show "Command executed
+    // successfully. 0 row(s) affected." for a plain, successful, empty SELECT).
+    const db = new SQL.Database();
+    db.exec('CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT);');
+    db.exec("INSERT INTO users (email) VALUES ('a@b.com');");
+
+    const result = runQuery(db, 'SELECT * FROM users WHERE id = 999;');
+    assert.deepStrictEqual(result.columns, [], 'a zero-row SELECT must not be reported via the fake status/message columns');
+    assert.deepStrictEqual(result.rows, []);
+
+    db.close();
+  });
+
+  // Mirrors SqliteService.mutateRow's insert/update/delete SQL-building against the real engine,
+  // the same logic the Data Grid's inline edit / Add Row / Delete Selected features call into.
+  function buildMutateRowSql(table, op, values, where = {}) {
+    let sql, params;
+    if (op === 'insert') {
+      const cols = Object.keys(values);
+      params = cols.map(c => values[c]);
+      sql = `INSERT INTO ${quoteIdent(table)} (${cols.map(quoteIdent).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`;
+    } else if (op === 'update') {
+      const setCols = Object.keys(values);
+      const whereCols = Object.keys(where);
+      params = [...setCols.map(c => values[c]), ...whereCols.filter(c => where[c] !== null).map(c => where[c])];
+      const setClause = setCols.map(c => `${quoteIdent(c)} = ?`).join(', ');
+      const whereClause = whereCols.map(c => where[c] === null ? `${quoteIdent(c)} IS NULL` : `${quoteIdent(c)} = ?`).join(' AND ');
+      sql = `UPDATE ${quoteIdent(table)} SET ${setClause} WHERE ${whereClause}`;
+    } else {
+      const whereCols = Object.keys(where);
+      params = whereCols.filter(c => where[c] !== null).map(c => where[c]);
+      const whereClause = whereCols.map(c => where[c] === null ? `${quoteIdent(c)} IS NULL` : `${quoteIdent(c)} = ?`).join(' AND ');
+      sql = `DELETE FROM ${quoteIdent(table)} WHERE ${whereClause}`;
+    }
+    return { sql, params };
+  }
+
+  await test('SQLite: Data Grid row insert/update/delete — real parameterized mutation', async () => {
+    const db = new SQL.Database();
+    db.exec('CREATE TABLE notes (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT);');
+
+    const ins = buildMutateRowSql('notes', 'insert', { title: 'Grid Row', body: 'inserted via mutateRow' });
+    db.run(ins.sql, ins.params);
+    const afterInsert = runQuery(db, 'SELECT id, title FROM notes;');
+    assert.strictEqual(afterInsert.rows.length, 1);
+    const newId = afterInsert.rows[0].id;
+
+    const upd = buildMutateRowSql('notes', 'update', { body: 'edited via mutateRow' }, { id: newId });
+    db.run(upd.sql, upd.params);
+    assert.strictEqual(db.getRowsModified(), 1, 'update should affect exactly one row');
+    const afterUpdate = runQuery(db, 'SELECT body FROM notes WHERE id = ' + newId + ';');
+    assert.strictEqual(afterUpdate.rows[0].body, 'edited via mutateRow');
+
+    const del = buildMutateRowSql('notes', 'delete', {}, { id: newId });
+    db.run(del.sql, del.params);
+    assert.strictEqual(db.getRowsModified(), 1, 'delete should affect exactly one row');
+    const afterDelete = runQuery(db, 'SELECT * FROM notes;');
+    assert.strictEqual(afterDelete.rows.length, 0);
+
+    db.close();
+  });
+
+  await test('SQLite: Data Grid mutation binds values as real parameters (SQL injection is inert)', async () => {
+    const db = new SQL.Database();
+    db.exec("CREATE TABLE notes (id INTEGER PRIMARY KEY, title TEXT);");
+
+    const maliciousTitle = "x'); DROP TABLE notes; --";
+    const ins = buildMutateRowSql('notes', 'insert', { id: 1, title: maliciousTitle });
+    db.run(ins.sql, ins.params);
+
+    // If the string had been concatenated into the SQL instead of bound as a parameter, this table
+    // would no longer exist.
+    const stillThere = db.exec("SELECT title FROM notes WHERE id = 1;");
+    assert.strictEqual(stillThere[0].values[0][0], maliciousTitle, 'the literal string should be stored as-is, not interpreted as SQL');
 
     db.close();
   });

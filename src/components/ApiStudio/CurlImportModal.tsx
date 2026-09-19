@@ -35,7 +35,7 @@ export const CurlImportModal: React.FC<CurlImportModalProps> = ({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Terminal size={20} color="#06b6d4" />
-            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#fff' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-main)' }}>
               Import from cURL
             </h2>
           </div>

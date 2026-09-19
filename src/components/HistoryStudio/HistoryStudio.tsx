@@ -73,7 +73,7 @@ export const HistoryStudio: React.FC<HistoryStudioProps> = ({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
               <History size={20} color="#06b6d4" />
-              <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#fff', margin: 0 }}>
+              <h1 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
                 Activity & Execution History
               </h1>
             </div>
@@ -107,7 +107,7 @@ export const HistoryStudio: React.FC<HistoryStudioProps> = ({
         }}>
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '12px 14px' }}>
             <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>TOTAL RECORDED</div>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: '#fff' }}>{history.length}</div>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-main)' }}>{history.length}</div>
           </div>
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '12px 14px' }}>
             <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>HTTP API CALLS</div>
@@ -152,7 +152,7 @@ export const HistoryStudio: React.FC<HistoryStudioProps> = ({
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: '#fff',
+                color: 'var(--text-main)',
                 fontSize: '12px',
                 outline: 'none',
                 width: '100%'
@@ -252,7 +252,7 @@ export const HistoryStudio: React.FC<HistoryStudioProps> = ({
                         <span style={{
                           fontSize: '13px',
                           fontWeight: 600,
-                          color: '#fff',
+                          color: 'var(--text-main)',
                           fontFamily: isSql ? 'var(--font-mono)' : 'inherit',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',

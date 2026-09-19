@@ -4,14 +4,14 @@
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Bapu Studio CI](https://github.com/joravar/bapu-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/joravar/bapu-studio/actions/workflows/ci.yml)
-[![Release: v1.2.1](https://img.shields.io/badge/Release-v1.2.1-emerald.svg)](https://github.com/joravar/bapu-studio/releases/tag/v1.2.1)
-[![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational.svg)](https://github.com/joravar/bapu-studio/releases/tag/v1.2.1)
+[![Release: v1.3.0](https://img.shields.io/badge/Release-v1.3.0-emerald.svg)](https://github.com/joravar/bapu-studio/releases/tag/v1.3.0)
+[![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational.svg)](https://github.com/joravar/bapu-studio/releases/tag/v1.3.0)
 [![Website](https://img.shields.io/badge/Website-Live-brightgreen.svg)](https://joravar.github.io/bapu-studio/)
 [![Sponsor](https://img.shields.io/badge/GitHub-Sponsor-pink.svg)](https://github.com/sponsors/joravar)
 
 **The honest, lightweight, local-first developer cockpit combining an API Client, Multi-Tab Database Studio, Real-Time Streams, and Secrets Matrix into one seamless desktop application.**
 
-[📦 Downloads](#-downloads) • [✨ New in v1.2.1](#-whats-new-in-v121) • [🌐 Live Website](https://joravar.github.io/bapu-studio/) • [📊 Comparison](#-feature-comparison) • [🏗️ Architecture](#️-architecture--technology-stack) • [🤖 AI Copilot](#-ai-copilot--current-status) • [📡 Stream Studio Status](#-stream-studio--current-status) • [📊 Data Grid Status](#-data-grid--current-status) • [💖 Sponsor](#-support--github-sponsors) • [📄 License](#-license)
+[📦 Downloads](#-downloads) • [✨ New in v1.3.0](#-whats-new-in-v130) • [🌐 Live Website](https://joravar.github.io/bapu-studio/) • [📊 Comparison](#-feature-comparison) • [🏗️ Architecture](#️-architecture--technology-stack) • [🤖 AI Copilot](#-ai-copilot--current-status) • [📡 Stream Studio Status](#-stream-studio--current-status) • [📊 Data Grid Status](#-data-grid--current-status) • [💖 Sponsor](#-support--github-sponsors) • [📄 License](#-license)
 
 </div>
 
@@ -39,13 +39,23 @@ Developers are tired of running several bloated, heavy tools simultaneously just
 
 ## 📦 Downloads
 
-Direct native installer packages are available on [GitHub Releases (v1.2.1)](https://github.com/joravar/bapu-studio/releases/tag/v1.2.1):
+Direct native installer packages are available on [GitHub Releases (v1.3.0)](https://github.com/joravar/bapu-studio/releases/tag/v1.3.0):
 
 | Operating System | Installer Package | Format | Status |
 | :--- | :--- | :--- | :--- |
-| **🍏 macOS (Apple Silicon)** | [**Download macOS DMG**](https://github.com/joravar/bapu-studio/releases/download/v1.2.1/Bapu-Studio-1.2.1-mac-arm64.dmg) <br> [Download macOS Zip](https://github.com/joravar/bapu-studio/releases/download/v1.2.1/Bapu-Studio-1.2.1-mac-arm64.zip) | `.dmg` & `.zip` | ✅ Signed & Notarized by Apple |
-| **🪟 Windows** | [**Download Windows Installer**](https://github.com/joravar/bapu-studio/releases/download/v1.2.1/Bapu-Studio-Setup-1.2.1.exe) <br> [Download Portable .exe](https://github.com/joravar/bapu-studio/releases/download/v1.2.1/Bapu-Studio-Portable-1.2.1.exe) <br> [Download Windows Zip](https://github.com/joravar/bapu-studio/releases/download/v1.2.1/Bapu-Studio-1.2.1-win-x64.zip) | `.exe` (NSIS & Portable) | ✅ Ready to install / run |
-| **🐧 Linux** | [**Download Linux AppImage**](https://github.com/joravar/bapu-studio/releases/download/v1.2.1/Bapu-Studio-1.2.1-linux-x86_64.AppImage) <br> [Download Debian (.deb)](https://github.com/joravar/bapu-studio/releases/download/v1.2.1/Bapu-Studio-1.2.1-linux-amd64.deb) <br> [Download Tarball (.tar.gz)](https://github.com/joravar/bapu-studio/releases/download/v1.2.1/Bapu-Studio-1.2.1-linux-x64.tar.gz) | `.AppImage`, `.deb`, `.tar.gz` | ✅ Ready to run |
+| **🍏 macOS (Apple Silicon)** | [**Download macOS DMG**](https://github.com/joravar/bapu-studio/releases/download/v1.3.0/Bapu-Studio-1.3.0-mac-arm64.dmg) <br> [Download macOS Zip](https://github.com/joravar/bapu-studio/releases/download/v1.3.0/Bapu-Studio-1.3.0-mac-arm64.zip) | `.dmg` & `.zip` | ✅ Signed & Notarized by Apple |
+| **🪟 Windows** | [**Download Windows Installer**](https://github.com/joravar/bapu-studio/releases/download/v1.3.0/Bapu-Studio-Setup-1.3.0.exe) <br> [Download Portable .exe](https://github.com/joravar/bapu-studio/releases/download/v1.3.0/Bapu-Studio-Portable-1.3.0.exe) <br> [Download Windows Zip](https://github.com/joravar/bapu-studio/releases/download/v1.3.0/Bapu-Studio-1.3.0-win-x64.zip) | `.exe` (NSIS & Portable) | ✅ Ready to install / run |
+| **🐧 Linux** | [**Download Linux AppImage**](https://github.com/joravar/bapu-studio/releases/download/v1.3.0/Bapu-Studio-1.3.0-linux-x86_64.AppImage) <br> [Download Debian (.deb)](https://github.com/joravar/bapu-studio/releases/download/v1.3.0/Bapu-Studio-1.3.0-linux-amd64.deb) <br> [Download Tarball (.tar.gz)](https://github.com/joravar/bapu-studio/releases/download/v1.3.0/Bapu-Studio-1.3.0-linux-x64.tar.gz) | `.AppImage`, `.deb`, `.tar.gz` | ✅ Ready to run |
+
+---
+
+## ✨ What's New in v1.3.0
+
+* **Editable Data Grid** — double-click a cell to edit it, plus Add Row and Delete Selected, for Postgres/MySQL/SQLite/MongoDB. All generated SQL binds values as real query parameters, never string-concatenated. Editing is auto-disabled (with a **Read-only** indicator and reason) for joins/aggregates, tables without a primary key, the built-in demo data, and Redis — see [Data Grid — Current Status](#-data-grid--current-status).
+* **Dark / Light theme toggle** — the sun/moon button in the header switches themes instantly, persisted locally.
+* **Real app logo** — the actual Bapu Studio mark now appears in the app header and on this project's website, replacing a placeholder.
+* **UX fix**: the SQLite drag-and-drop box no longer permanently occupies sidebar space once a connection is active — it collapses to a small "Load a SQLite file..." link.
+* **Bug fix**: a SQL query that legitimately matched zero rows could show a fabricated "Command executed successfully" message on SQLite instead of a real, empty result — fixed and covered by a regression test.
 
 ---
 
@@ -196,10 +206,10 @@ npm run test:mongodb
 
 ## 🏗️ Architecture & Technology Stack
 
-* **Desktop Runtime:** Electron 34 with secure context-isolated preload bridge (`preload.cjs`).
+* **Desktop Runtime:** Electron 44 with secure context-isolated preload bridge (`preload.cjs`).
 * **Database Driver Engine:** Bundled pure-JS TCP drivers (`pg`, `mysql2`, `mongodb`, `ioredis`, `sql.js`) with zero external native compilation dependencies.
-* **Frontend Cockpit:** React 18 / TypeScript 5 with ultra-fast Vite 6 bundler.
-* **UI Design System:** Zero CSS framework overhead — hand-crafted vanilla HSL dark-mode theme.
+* **Frontend Cockpit:** React 19 / TypeScript 7 with ultra-fast Vite 8 bundler.
+* **UI Design System:** Zero CSS framework overhead — hand-crafted vanilla HSL theme with a dark/light toggle (the sun/moon button in the header), persisted locally.
 * **Storage Engine:** 100% local persistence across cold reboots with zero cloud leaks.
 * **Resilience:** Defensive state sanitization and zero-crash React Error Boundary.
 
@@ -233,9 +243,19 @@ A couple of things worth knowing:
 
 ## 📊 Data Grid — Current Status
 
-The Data Grid (Database Studio's results view) is currently **read-only**. It displays query results — including Redis's keyspace browser results — but there's no inline cell editing, and no add-row/delete-row UI. To change data today, write and run an `UPDATE`/`INSERT`/`DELETE` query (or the Mongo/Redis equivalent) directly.
+The Data Grid (Database Studio's results view) now supports real **inline editing** for Postgres, MySQL, SQLite, and MongoDB:
 
-Real inline editing (double-click a cell to edit, plus add/delete row buttons, generating real `UPDATE`/`updateOne` statements underneath for Postgres/MySQL/SQLite/MongoDB) is planned but not yet built. Redis is expected to stay excluded, since its keyspace browser isn't a row-based grid with a stable primary key to edit against.
+* **Edit a cell** — double-click any non-key cell to edit it in place; Enter (or clicking away) commits a real, parameterized `UPDATE` (or MongoDB `updateOne`) targeted at that row's primary key (`_id` for MongoDB). Clearing a cell sets it to `NULL`.
+* **Add Row** — a form built from the table's real column list (a JSON document editor for MongoDB, since its schema is flexible), inserting via a real parameterized `INSERT`/`insertOne`.
+* **Delete Selected** — check one or more rows and delete them via a real, parameterized `DELETE`/`deleteOne`, after a confirmation prompt.
+
+Editing is only offered when it's actually safe to target a specific row, and shows a **Read-only** indicator (with the reason on hover) otherwise:
+* The result on screen has to be a plain browse of one table (`SELECT * FROM that_table` / `collection.find(...)`) — not a JOIN, aggregate, or hand-written query that merely happens to share column names, since editing writes an `UPDATE`/`DELETE` back at that exact table.
+* The table needs a real primary key (or `_id` for MongoDB) present in the result columns, so a mutation can never guess at which row to hit.
+* The built-in sample/demo database is intentionally read-only — there's no real database behind it to write to, so editing it is refused with a clear message rather than silently pretending to succeed.
+* **Redis stays excluded** — its keyspace browser isn't a row-based table with a stable primary key to edit against.
+
+All generated SQL binds edited values as real query parameters (`$1`/`?` placeholders), never string-concatenated, so typed cell values can't be interpreted as SQL.
 
 ---
 

@@ -30,7 +30,7 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <FolderPlus size={18} color="#3b82f6" />
-            <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#fff' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>
               Create New Collection
             </h2>
           </div>
@@ -57,7 +57,7 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
               border: '1px solid var(--border-subtle)',
               borderRadius: 'var(--radius-md)',
               padding: '8px 12px',
-              color: '#fff',
+              color: 'var(--text-main)',
               marginBottom: '16px'
             }}
           />

@@ -434,6 +434,40 @@ export const DatabaseService = {
     };
   },
 
+  async mutateRow(
+    db: DatabaseConnection,
+    table: string,
+    op: 'insert' | 'update' | 'delete',
+    values: Record<string, any> = {},
+    where: Record<string, any> = {}
+  ): Promise<{ success: boolean; rowsAffected?: number; message?: string }> {
+    if (db.type === 'sqlite') {
+      return SqliteService.mutateRow(db.id, table, op, values, where);
+    }
+
+    const isPlayground = Boolean(
+      db.isDemoDb ||
+      db.id === 'db-playground-analytics' ||
+      db.id?.startsWith('db-demo') ||
+      db.id === 'db-empty' ||
+      (!db.connectionString && !(db as any).host)
+    );
+    if (isPlayground) {
+      return { success: false, message: 'This is read-only sample data — connect a real database to edit rows.' };
+    }
+
+    const bridge = getBridge();
+    if (!bridge?.dbMutateRow) {
+      return { success: false, message: 'Row editing requires the desktop app (no direct database access in a plain browser).' };
+    }
+
+    try {
+      return await bridge.dbMutateRow({ config: db, table, op, values, where });
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Row mutation failed' };
+    }
+  },
+
   async disconnect(id: string): Promise<void> {
     if (SqliteService.isLoaded(id)) {
       SqliteService.close(id);

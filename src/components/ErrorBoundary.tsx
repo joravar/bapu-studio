@@ -55,7 +55,7 @@ export class ErrorBoundary extends Component<Props, State> {
           minHeight: '400px',
           padding: '32px',
           background: 'var(--bg-card, #0f172a)',
-          color: '#fff',
+          color: 'var(--text-main, #f1f5f9)',
           textAlign: 'center'
         }}>
           <div style={{
@@ -72,7 +72,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <AlertTriangle size={24} color="#f87171" />
           </div>
 
-          <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px', color: '#fff' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px', color: 'var(--text-main, #f1f5f9)' }}>
             {this.props.fallbackTitle || 'Something went wrong in this view'}
           </h2>
 
