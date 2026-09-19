@@ -11,7 +11,7 @@
 
 **The honest, lightweight, local-first developer cockpit combining an API Client, Multi-Tab Database Studio, Real-Time Streams, and Secrets Matrix into one seamless desktop application.**
 
-[📦 Downloads](#-downloads) • [✨ New in v1.2.1](#-whats-new-in-v121) • [🌐 Live Website](https://joravar.github.io/bapu-studio/) • [📊 Comparison](#-feature-comparison) • [🏗️ Architecture](#️-architecture--technology-stack) • [🤖 AI Copilot](#-ai-copilot--current-status) • [📡 Stream Studio Status](#-stream-studio--current-status) • [💖 Sponsor](#-support--github-sponsors) • [📄 License](#-license)
+[📦 Downloads](#-downloads) • [✨ New in v1.2.1](#-whats-new-in-v121) • [🌐 Live Website](https://joravar.github.io/bapu-studio/) • [📊 Comparison](#-feature-comparison) • [🏗️ Architecture](#️-architecture--technology-stack) • [🤖 AI Copilot](#-ai-copilot--current-status) • [📡 Stream Studio Status](#-stream-studio--current-status) • [📊 Data Grid Status](#-data-grid--current-status) • [💖 Sponsor](#-support--github-sponsors) • [📄 License](#-license)
 
 </div>
 
@@ -228,6 +228,14 @@ Stream Studio opens genuine connections: `EventSource` for SSE mode and `WebSock
 A couple of things worth knowing:
 * **CORS applies to SSE** the same way it does to `fetch` — if a remote SSE endpoint doesn't send permissive CORS headers, the browser will block the response and you'll see a connection error, even though the server is reachable.
 * When a server ends an SSE stream normally (rather than the client disconnecting), the browser's `EventSource` API reports that the same way it reports a network error — so a "stream error or connection closed" message doesn't necessarily mean something went wrong.
+
+---
+
+## 📊 Data Grid — Current Status
+
+The Data Grid (Database Studio's results view) is currently **read-only**. It displays query results — including Redis's keyspace browser results — but there's no inline cell editing, and no add-row/delete-row UI. To change data today, write and run an `UPDATE`/`INSERT`/`DELETE` query (or the Mongo/Redis equivalent) directly.
+
+Real inline editing (double-click a cell to edit, plus add/delete row buttons, generating real `UPDATE`/`updateOne` statements underneath for Postgres/MySQL/SQLite/MongoDB) is planned but not yet built. Redis is expected to stay excluded, since its keyspace browser isn't a row-based grid with a stable primary key to edit against.
 
 ---
 
