@@ -1658,6 +1658,73 @@ async function runSqliteSuite() {
 
     db.close();
   });
+
+  // Mirrors SqliteService.mutateBatch — the DBeaver-style "N pending changes -> Save" batch commit,
+  // wrapped in a real SQLite transaction.
+  function runMutateBatch(db, table, mutations) {
+    db.exec('BEGIN');
+    try {
+      const results = mutations.map(m => {
+        const { sql, params } = buildMutateRowSql(table, m.op, m.values || {}, m.where || {});
+        db.run(sql, params);
+        return { op: m.op, rowsAffected: db.getRowsModified() };
+      });
+      db.exec('COMMIT');
+      return { success: true, results };
+    } catch (err) {
+      db.exec('ROLLBACK');
+      return { success: false, message: err.message };
+    }
+  }
+
+  await test('SQLite: batch save commits several staged edit/insert/delete mutations together', async () => {
+    const db = new SQL.Database();
+    db.exec('CREATE TABLE notes (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT);');
+    db.exec("INSERT INTO notes (title, body) VALUES ('keep me', 'x'), ('delete me', 'y'), ('edit me', 'z');");
+
+    const rows = runQuery(db, 'SELECT id, title FROM notes ORDER BY id;').rows;
+    const deleteId = rows[1].id;
+    const editId = rows[2].id;
+
+    const batchResult = runMutateBatch(db, 'notes', [
+      { op: 'update', values: { title: 'edited via batch' }, where: { id: editId } },
+      { op: 'insert', values: { title: 'staged new row', body: 'w' } },
+      { op: 'delete', where: { id: deleteId } }
+    ]);
+    assert.strictEqual(batchResult.success, true);
+    assert.strictEqual(batchResult.results.length, 3);
+
+    const after = runQuery(db, 'SELECT title FROM notes ORDER BY id;').rows.map(r => r.title);
+    assert.deepStrictEqual(after, ['keep me', 'edited via batch', 'staged new row'], 'update, insert, and delete should all have applied together');
+
+    db.close();
+  });
+
+  await test('SQLite: batch save rolls back everything if one mutation in the batch fails', async () => {
+    const db = new SQL.Database();
+    db.exec('CREATE TABLE notes (id INTEGER PRIMARY KEY, title TEXT NOT NULL);');
+    db.exec("INSERT INTO notes (id, title) VALUES (1, 'original');");
+
+    // The second mutation targets a table that doesn't exist, so it throws mid-batch — the first
+    // mutation's UPDATE must not be left applied once the whole batch is rolled back.
+    db.exec('BEGIN');
+    let threw = false;
+    try {
+      const { sql, params } = buildMutateRowSql('notes', 'update', { title: 'partial update' }, { id: 1 });
+      db.run(sql, params);
+      db.run('INSERT INTO a_table_that_does_not_exist (x) VALUES (1);');
+      db.exec('COMMIT');
+    } catch {
+      threw = true;
+      db.exec('ROLLBACK');
+    }
+    assert.ok(threw, 'the batch should fail when one of its statements errors');
+
+    const stillOriginal = runQuery(db, 'SELECT title FROM notes WHERE id = 1;').rows[0].title;
+    assert.strictEqual(stillOriginal, 'original', 'the UPDATE from earlier in the same batch must be rolled back, not left partially applied');
+
+    db.close();
+  });
 }
 
 await runSqliteSuite();

@@ -243,6 +243,59 @@ try {
     await client.end();
   });
 
+  await test('Data Grid batch save — several staged mutations commit together in one real transaction', async () => {
+    const client = new pg.Client(getPgConfig(baseConfig));
+    await client.connect();
+
+    await client.query(`INSERT INTO accounts (id, email, balance_cents) VALUES (9001, 'keep@test.com', 100), (9002, 'delete@test.com', 200), (9003, 'edit@test.com', 300);`);
+
+    // Mirrors the db:mutate-batch postgres branch: BEGIN, run each staged mutation on the same
+    // client, COMMIT — proving multiple pending Data Grid changes really do land as one transaction.
+    await client.query('BEGIN');
+    const upd = buildMutateRowSql('accounts', 'update', { balance_cents: 999 }, { id: 9003 });
+    await client.query(upd.sql, upd.params);
+    const ins = buildMutateRowSql('accounts', 'insert', { id: 9004, email: 'new@test.com', balance_cents: 1 });
+    await client.query(ins.sql, ins.params);
+    const del = buildMutateRowSql('accounts', 'delete', {}, { id: 9002 });
+    await client.query(del.sql, del.params);
+    await client.query('COMMIT');
+
+    const rows = await client.query('SELECT id, balance_cents FROM accounts WHERE id IN (9001, 9002, 9003, 9004) ORDER BY id;');
+    assert.deepStrictEqual(rows.rows.map(r => r.id), [9001, 9003, 9004], '9002 should be gone, 9004 should exist — all three staged mutations applied together');
+    assert.strictEqual(rows.rows.find(r => r.id === 9003).balance_cents, 999);
+
+    await client.query('DELETE FROM accounts WHERE id IN (9001, 9003, 9004);');
+    await client.end();
+  });
+
+  await test('Data Grid batch save — a real ROLLBACK undoes every mutation in the batch, not just the failing one', async () => {
+    const client = new pg.Client(getPgConfig(baseConfig));
+    await client.connect();
+
+    await client.query(`INSERT INTO accounts (id, email, balance_cents) VALUES (9101, 'rollback@test.com', 500);`);
+
+    await client.query('BEGIN');
+    const upd = buildMutateRowSql('accounts', 'update', { balance_cents: 12345 }, { id: 9101 });
+    await client.query(upd.sql, upd.params);
+
+    let threw = false;
+    try {
+      // Deliberately malformed — references a column that doesn't exist, so it fails mid-transaction.
+      await client.query('INSERT INTO accounts (id, email, balance_cents, no_such_column) VALUES (9102, $1, 1, 1)', ['x@test.com']);
+      await client.query('COMMIT');
+    } catch {
+      threw = true;
+      await client.query('ROLLBACK');
+    }
+    assert.ok(threw, 'the second statement should fail, since the column does not exist');
+
+    const stillOriginal = await client.query('SELECT balance_cents FROM accounts WHERE id = 9101;');
+    assert.strictEqual(stillOriginal.rows[0].balance_cents, 500, 'the UPDATE earlier in the same transaction must be rolled back too, not left applied');
+
+    await client.query('DELETE FROM accounts WHERE id = 9101;');
+    await client.end();
+  });
+
   await test('Wrong password produces a real authentication error, not a false success', async () => {
     const client = new pg.Client(getPgConfig({ ...baseConfig, password: 'definitely-wrong' }));
     let threw = false;

@@ -284,6 +284,71 @@ async function getMysqlPool(config) {
   return pool;
 }
 
+// Shared SQL builders for a single row mutation, used by both the immediate db:mutate-row handler
+// and the transactional db:mutate-batch handler (each statement in a batch still gets its own
+// independently-numbered placeholders, since it's executed as its own client.query() call).
+function buildPgMutationSql(table, op, values, where) {
+  const quoteIdent = (id) => `"${String(id).replace(/"/g, '""')}"`;
+  let sql, params;
+
+  if (op === 'insert') {
+    const cols = Object.keys(values);
+    params = cols.map(c => values[c]);
+    sql = `INSERT INTO ${quoteIdent(table)} (${cols.map(quoteIdent).join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')})`;
+  } else if (op === 'update') {
+    const setCols = Object.keys(values);
+    params = setCols.map(c => values[c]);
+    const setClause = setCols.map((c, i) => `${quoteIdent(c)} = $${i + 1}`).join(', ');
+    let paramIdx = setCols.length;
+    const whereClause = Object.keys(where).map(c => {
+      if (where[c] === null) return `${quoteIdent(c)} IS NULL`;
+      paramIdx += 1;
+      params.push(where[c]);
+      return `${quoteIdent(c)} = $${paramIdx}`;
+    }).join(' AND ');
+    sql = `UPDATE ${quoteIdent(table)} SET ${setClause} WHERE ${whereClause}`;
+  } else if (op === 'delete') {
+    params = [];
+    let paramIdx = 0;
+    const whereClause = Object.keys(where).map(c => {
+      if (where[c] === null) return `${quoteIdent(c)} IS NULL`;
+      paramIdx += 1;
+      params.push(where[c]);
+      return `${quoteIdent(c)} = $${paramIdx}`;
+    }).join(' AND ');
+    sql = `DELETE FROM ${quoteIdent(table)} WHERE ${whereClause}`;
+  } else {
+    throw new Error(`Unknown row mutation op: ${op}`);
+  }
+  return { sql, params };
+}
+
+function buildMysqlMutationSql(table, op, values, where) {
+  const quoteIdent = (id) => `\`${String(id).replace(/`/g, '``')}\``;
+  let sql, params;
+
+  if (op === 'insert') {
+    const cols = Object.keys(values);
+    params = cols.map(c => values[c]);
+    sql = `INSERT INTO ${quoteIdent(table)} (${cols.map(quoteIdent).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`;
+  } else if (op === 'update') {
+    const setCols = Object.keys(values);
+    const whereCols = Object.keys(where);
+    params = [...setCols.map(c => values[c]), ...whereCols.filter(c => where[c] !== null).map(c => where[c])];
+    const setClause = setCols.map(c => `${quoteIdent(c)} = ?`).join(', ');
+    const whereClause = whereCols.map(c => where[c] === null ? `${quoteIdent(c)} IS NULL` : `${quoteIdent(c)} = ?`).join(' AND ');
+    sql = `UPDATE ${quoteIdent(table)} SET ${setClause} WHERE ${whereClause}`;
+  } else if (op === 'delete') {
+    const whereCols = Object.keys(where);
+    params = whereCols.filter(c => where[c] !== null).map(c => where[c]);
+    const whereClause = whereCols.map(c => where[c] === null ? `${quoteIdent(c)} IS NULL` : `${quoteIdent(c)} = ?`).join(' AND ');
+    sql = `DELETE FROM ${quoteIdent(table)} WHERE ${whereClause}`;
+  } else {
+    throw new Error(`Unknown row mutation op: ${op}`);
+  }
+  return { sql, params };
+}
+
 async function getMongoDb(config) {
   let client = mongoClients.get(config.id);
   if (!client) {
@@ -683,118 +748,141 @@ ipcMain.handle('db:query', async (event, { config, sql }) => {
   }
 });
 
-// 3. Mutate a single row/document — real UPDATE/INSERT/DELETE for the Data Grid's inline editing.
-// Deliberately narrower than db:query: `table` and `values`/`where` keys are only ever identifiers
-// and values the renderer already read back from this same database's own schema/rows, never raw
-// user SQL text, so building the statement here (rather than accepting a pre-built SQL string) keeps
-// every value bound as a real query parameter instead of string-concatenated into the statement.
-ipcMain.handle('db:mutate-row', async (event, { config, table, op, values, where }) => {
+// 3. Mutate several rows/documents as one all-or-nothing batch — backs the Data Grid's DBeaver-style
+// "pending changes, then Save/Revert" model. Real transactions (BEGIN/COMMIT/ROLLBACK, or a Mongo
+// session) for Postgres/MySQL/MongoDB *when the server supports them*. A standalone (non-replica-set)
+// MongoDB deployment has no multi-document transaction support at all — rather than silently applying
+// changes one-by-one and calling that "saved" the same way, this falls back to sequential execution
+// but reports `atomic: false` and stops immediately on the first failure, so the renderer can tell the
+// user exactly what happened instead of implying an all-or-nothing guarantee that wasn't real.
+ipcMain.handle('db:mutate-batch', async (event, { config, table, mutations }) => {
   const startTime = Date.now();
   try {
+    if (!Array.isArray(mutations) || mutations.length === 0) {
+      return { success: true, atomic: true, results: [], executionTimeMs: Date.now() - startTime };
+    }
+
     if (config.type === 'postgres') {
       const pool = await getPgPool(config);
-      const quoteIdent = (id) => `"${String(id).replace(/"/g, '""')}"`;
-      let sql, params;
-
-      if (op === 'insert') {
-        const cols = Object.keys(values);
-        params = cols.map(c => values[c]);
-        sql = `INSERT INTO ${quoteIdent(table)} (${cols.map(quoteIdent).join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')})`;
-      } else if (op === 'update') {
-        const setCols = Object.keys(values);
-        params = setCols.map(c => values[c]);
-        const setClause = setCols.map((c, i) => `${quoteIdent(c)} = $${i + 1}`).join(', ');
-        let paramIdx = setCols.length;
-        const whereClause = Object.keys(where).map(c => {
-          if (where[c] === null) return `${quoteIdent(c)} IS NULL`;
-          paramIdx += 1;
-          params.push(where[c]);
-          return `${quoteIdent(c)} = $${paramIdx}`;
-        }).join(' AND ');
-        sql = `UPDATE ${quoteIdent(table)} SET ${setClause} WHERE ${whereClause}`;
-      } else if (op === 'delete') {
-        params = [];
-        let paramIdx = 0;
-        const whereClause = Object.keys(where).map(c => {
-          if (where[c] === null) return `${quoteIdent(c)} IS NULL`;
-          paramIdx += 1;
-          params.push(where[c]);
-          return `${quoteIdent(c)} = $${paramIdx}`;
-        }).join(' AND ');
-        sql = `DELETE FROM ${quoteIdent(table)} WHERE ${whereClause}`;
-      } else {
-        return { success: false, message: `Unknown row mutation op: ${op}` };
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const results = [];
+        for (const m of mutations) {
+          const { sql, params } = buildPgMutationSql(table, m.op, m.values, m.where);
+          const res = await client.query(sql, params);
+          results.push({ op: m.op, rowsAffected: res.rowCount ?? 0 });
+        }
+        await client.query('COMMIT');
+        return { success: true, atomic: true, results, executionTimeMs: Date.now() - startTime };
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+      } finally {
+        client.release();
       }
-
-      const res = await pool.query(sql, params);
-      return { success: true, rowsAffected: res.rowCount ?? 0, executionTimeMs: Date.now() - startTime };
     }
 
     if (config.type === 'mysql') {
       const pool = await getMysqlPool(config);
-      const quoteIdent = (id) => `\`${String(id).replace(/`/g, '``')}\``;
-      let sql, params;
-
-      if (op === 'insert') {
-        const cols = Object.keys(values);
-        params = cols.map(c => values[c]);
-        sql = `INSERT INTO ${quoteIdent(table)} (${cols.map(quoteIdent).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`;
-      } else if (op === 'update') {
-        const setCols = Object.keys(values);
-        const whereCols = Object.keys(where);
-        params = [...setCols.map(c => values[c]), ...whereCols.filter(c => where[c] !== null).map(c => where[c])];
-        const setClause = setCols.map(c => `${quoteIdent(c)} = ?`).join(', ');
-        const whereClause = whereCols.map(c => where[c] === null ? `${quoteIdent(c)} IS NULL` : `${quoteIdent(c)} = ?`).join(' AND ');
-        sql = `UPDATE ${quoteIdent(table)} SET ${setClause} WHERE ${whereClause}`;
-      } else if (op === 'delete') {
-        const whereCols = Object.keys(where);
-        params = whereCols.filter(c => where[c] !== null).map(c => where[c]);
-        const whereClause = whereCols.map(c => where[c] === null ? `${quoteIdent(c)} IS NULL` : `${quoteIdent(c)} = ?`).join(' AND ');
-        sql = `DELETE FROM ${quoteIdent(table)} WHERE ${whereClause}`;
-      } else {
-        return { success: false, message: `Unknown row mutation op: ${op}` };
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const results = [];
+        for (const m of mutations) {
+          const { sql, params } = buildMysqlMutationSql(table, m.op, m.values, m.where);
+          const [res] = await conn.query(sql, params);
+          results.push({ op: m.op, rowsAffected: res.affectedRows ?? 0 });
+        }
+        await conn.commit();
+        return { success: true, atomic: true, results, executionTimeMs: Date.now() - startTime };
+      } catch (err) {
+        await conn.rollback().catch(() => {});
+        throw err;
+      } finally {
+        conn.release();
       }
-
-      const [res] = await pool.query(sql, params);
-      return { success: true, rowsAffected: res.affectedRows ?? 0, executionTimeMs: Date.now() - startTime };
     }
 
     if (config.type === 'mongodb') {
       const db = await getMongoDb(config);
       const collection = db.collection(table);
-
       const toObjectIdIfValid = (v) => (typeof v === 'string' && ObjectId.isValid(v) && String(new ObjectId(v)) === v) ? new ObjectId(v) : v;
 
-      if (op === 'insert') {
-        const doc = { ...values };
-        delete doc._id; // let Mongo generate a real one rather than trusting a client-supplied id
-        const res = await collection.insertOne(doc);
-        return { success: true, rowsAffected: 1, insertedId: String(res.insertedId), executionTimeMs: Date.now() - startTime };
-      }
+      const applyOne = async (m, session) => {
+        const opts = session ? { session } : {};
+        if (m.op === 'insert') {
+          const doc = { ...m.values };
+          delete doc._id;
+          const res = await collection.insertOne(doc, opts);
+          return { op: 'insert', rowsAffected: 1, insertedId: String(res.insertedId) };
+        }
+        if (!m.where || m.where._id === undefined) {
+          throw new Error('Missing _id to target a MongoDB document');
+        }
+        const filter = { _id: toObjectIdIfValid(m.where._id) };
+        if (m.op === 'update') {
+          const setDoc = { ...m.values };
+          delete setDoc._id;
+          const res = await collection.updateOne(filter, { $set: setDoc }, opts);
+          return { op: 'update', rowsAffected: res.modifiedCount ?? 0 };
+        }
+        if (m.op === 'delete') {
+          const res = await collection.deleteOne(filter, opts);
+          return { op: 'delete', rowsAffected: res.deletedCount ?? 0 };
+        }
+        throw new Error(`Unknown row mutation op: ${m.op}`);
+      };
 
-      if (!where || where._id === undefined) {
-        return { success: false, message: 'Missing _id to target a MongoDB document' };
-      }
-      const filter = { _id: toObjectIdIfValid(where._id) };
+      const client = mongoClients.get(config.id);
+      let session = null;
+      try {
+        session = client.startSession();
+        const results = [];
+        await session.withTransaction(async () => {
+          for (const m of mutations) {
+            results.push(await applyOne(m, session));
+          }
+        });
+        return { success: true, atomic: true, results, executionTimeMs: Date.now() - startTime };
+      } catch (err) {
+        const noTransactionSupport = /Transaction numbers are only allowed|IllegalOperation|Sessions are not supported|not supported.*replica set/i.test(err.message || '');
+        if (!noTransactionSupport) throw err;
 
-      if (op === 'update') {
-        const setDoc = { ...values };
-        delete setDoc._id; // _id is immutable in MongoDB
-        const res = await collection.updateOne(filter, { $set: setDoc });
-        return { success: true, rowsAffected: res.modifiedCount ?? 0, executionTimeMs: Date.now() - startTime };
+        // Standalone MongoDB: no transaction support at all. Apply sequentially and stop at the
+        // first failure — already-applied changes before it stay applied and are NOT rolled back,
+        // which the response says explicitly rather than pretending otherwise.
+        const results = [];
+        for (let i = 0; i < mutations.length; i++) {
+          try {
+            results.push(await applyOne(mutations[i], null));
+          } catch (innerErr) {
+            return {
+              success: false,
+              atomic: false,
+              message: `Change ${i + 1} of ${mutations.length} failed (${innerErr.message}). This MongoDB server doesn't support multi-document transactions (not a replica set), so the ${i} change(s) before it were already applied and were NOT rolled back.`,
+              results,
+              executionTimeMs: Date.now() - startTime
+            };
+          }
+        }
+        return {
+          success: true,
+          atomic: false,
+          message: 'Applied sequentially, not atomically — this MongoDB server is not a replica set, so multi-document transactions are unavailable.',
+          results,
+          executionTimeMs: Date.now() - startTime
+        };
+      } finally {
+        if (session) await session.endSession().catch(() => {});
       }
-      if (op === 'delete') {
-        const res = await collection.deleteOne(filter);
-        return { success: true, rowsAffected: res.deletedCount ?? 0, executionTimeMs: Date.now() - startTime };
-      }
-      return { success: false, message: `Unknown row mutation op: ${op}` };
     }
 
-    return { success: false, message: `Row editing is not supported for the ${config.type} driver.` };
+    return { success: false, message: `Batch row editing is not supported for the ${config.type} driver.` };
   } catch (err) {
     return {
       success: false,
-      message: err.message || 'Row mutation failed',
+      message: err.message || 'Batch mutation failed',
       executionTimeMs: Date.now() - startTime
     };
   }
@@ -1066,7 +1154,7 @@ ipcMain.on('secure:decrypt-sync', (event, storedText) => {
   }
 });
 
-// 4. Disconnect / invalidate a cached pool or client (called when a connection is edited or removed,
+// 5. Disconnect / invalidate a cached pool or client (called when a connection is edited or removed,
 // since edits reuse the same config.id and would otherwise keep querying through stale credentials)
 ipcMain.handle('db:disconnect', async (event, id) => {
   try {

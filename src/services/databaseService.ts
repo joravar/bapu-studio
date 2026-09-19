@@ -18,6 +18,12 @@ export interface ConnectionTestResult {
   message: string;
 }
 
+export interface RowMutation {
+  op: 'insert' | 'update' | 'delete';
+  values?: Record<string, any>;
+  where?: Record<string, any>;
+}
+
 // Helper to access the secure context bridge exposed by preload.cjs
 function getBridge(): any {
   if (typeof window !== 'undefined' && (window as any).bapuBridge) {
@@ -434,15 +440,22 @@ export const DatabaseService = {
     };
   },
 
-  async mutateRow(
+  // DBeaver-style "N pending changes, then Save/Revert" — applies every staged edit/insert/delete as
+  // one all-or-nothing batch for Postgres/MySQL/SQLite (a real transaction), or MongoDB when its
+  // server supports multi-document transactions (a replica set, which includes every Atlas cluster —
+  // a standalone/local `mongod` does not). When it can't be atomic, the response says so via
+  // `atomic: false` rather than the UI silently treating a partial apply as a clean save.
+  async mutateBatch(
     db: DatabaseConnection,
     table: string,
-    op: 'insert' | 'update' | 'delete',
-    values: Record<string, any> = {},
-    where: Record<string, any> = {}
-  ): Promise<{ success: boolean; rowsAffected?: number; message?: string }> {
+    mutations: RowMutation[]
+  ): Promise<{ success: boolean; atomic: boolean; results?: Array<{ op: string; rowsAffected: number }>; message?: string }> {
+    if (mutations.length === 0) {
+      return { success: true, atomic: true, results: [] };
+    }
+
     if (db.type === 'sqlite') {
-      return SqliteService.mutateRow(db.id, table, op, values, where);
+      return SqliteService.mutateBatch(db.id, table, mutations);
     }
 
     const isPlayground = Boolean(
@@ -453,18 +466,18 @@ export const DatabaseService = {
       (!db.connectionString && !(db as any).host)
     );
     if (isPlayground) {
-      return { success: false, message: 'This is read-only sample data — connect a real database to edit rows.' };
+      return { success: false, atomic: true, message: 'This is read-only sample data — connect a real database to edit rows.' };
     }
 
     const bridge = getBridge();
-    if (!bridge?.dbMutateRow) {
-      return { success: false, message: 'Row editing requires the desktop app (no direct database access in a plain browser).' };
+    if (!bridge?.dbMutateBatch) {
+      return { success: false, atomic: true, message: 'Row editing requires the desktop app (no direct database access in a plain browser).' };
     }
 
     try {
-      return await bridge.dbMutateRow({ config: db, table, op, values, where });
+      return await bridge.dbMutateBatch({ config: db, table, mutations });
     } catch (err: any) {
-      return { success: false, message: err.message || 'Row mutation failed' };
+      return { success: false, atomic: true, message: err.message || 'Batch mutation failed' };
     }
   },
 

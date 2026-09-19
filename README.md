@@ -4,14 +4,14 @@
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Bapu Studio CI](https://github.com/joravar/bapu-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/joravar/bapu-studio/actions/workflows/ci.yml)
-[![Release: v1.3.0](https://img.shields.io/badge/Release-v1.3.0-emerald.svg)](https://github.com/joravar/bapu-studio/releases/tag/v1.3.0)
-[![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational.svg)](https://github.com/joravar/bapu-studio/releases/tag/v1.3.0)
+[![Release: v1.4.0](https://img.shields.io/badge/Release-v1.4.0-emerald.svg)](https://github.com/joravar/bapu-studio/releases/tag/v1.4.0)
+[![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational.svg)](https://github.com/joravar/bapu-studio/releases/tag/v1.4.0)
 [![Website](https://img.shields.io/badge/Website-Live-brightgreen.svg)](https://joravar.github.io/bapu-studio/)
 [![Sponsor](https://img.shields.io/badge/GitHub-Sponsor-pink.svg)](https://github.com/sponsors/joravar)
 
 **The honest, lightweight, local-first developer cockpit combining an API Client, Multi-Tab Database Studio, Real-Time Streams, and Secrets Matrix into one seamless desktop application.**
 
-[📦 Downloads](#-downloads) • [✨ New in v1.3.0](#-whats-new-in-v130) • [🌐 Live Website](https://joravar.github.io/bapu-studio/) • [📊 Comparison](#-feature-comparison) • [🏗️ Architecture](#️-architecture--technology-stack) • [🤖 AI Copilot](#-ai-copilot--current-status) • [📡 Stream Studio Status](#-stream-studio--current-status) • [📊 Data Grid Status](#-data-grid--current-status) • [💖 Sponsor](#-support--github-sponsors) • [📄 License](#-license)
+[📦 Downloads](#-downloads) • [✨ New in v1.4.0](#-whats-new-in-v140) • [🌐 Live Website](https://joravar.github.io/bapu-studio/) • [📊 Comparison](#-feature-comparison) • [🏗️ Architecture](#️-architecture--technology-stack) • [🤖 AI Copilot](#-ai-copilot--current-status) • [📡 Stream Studio Status](#-stream-studio--current-status) • [📊 Data Grid Status](#-data-grid--current-status) • [💖 Sponsor](#-support--github-sponsors) • [📄 License](#-license)
 
 </div>
 
@@ -39,13 +39,24 @@ Developers are tired of running several bloated, heavy tools simultaneously just
 
 ## 📦 Downloads
 
-Direct native installer packages are available on [GitHub Releases (v1.3.0)](https://github.com/joravar/bapu-studio/releases/tag/v1.3.0):
+Direct native installer packages are available on [GitHub Releases (v1.4.0)](https://github.com/joravar/bapu-studio/releases/tag/v1.4.0):
 
 | Operating System | Installer Package | Format | Status |
 | :--- | :--- | :--- | :--- |
-| **🍏 macOS (Apple Silicon)** | [**Download macOS DMG**](https://github.com/joravar/bapu-studio/releases/download/v1.3.0/Bapu-Studio-1.3.0-mac-arm64.dmg) <br> [Download macOS Zip](https://github.com/joravar/bapu-studio/releases/download/v1.3.0/Bapu-Studio-1.3.0-mac-arm64.zip) | `.dmg` & `.zip` | ✅ Signed & Notarized by Apple |
-| **🪟 Windows** | [**Download Windows Installer**](https://github.com/joravar/bapu-studio/releases/download/v1.3.0/Bapu-Studio-Setup-1.3.0.exe) <br> [Download Portable .exe](https://github.com/joravar/bapu-studio/releases/download/v1.3.0/Bapu-Studio-Portable-1.3.0.exe) <br> [Download Windows Zip](https://github.com/joravar/bapu-studio/releases/download/v1.3.0/Bapu-Studio-1.3.0-win-x64.zip) | `.exe` (NSIS & Portable) | ✅ Ready to install / run |
-| **🐧 Linux** | [**Download Linux AppImage**](https://github.com/joravar/bapu-studio/releases/download/v1.3.0/Bapu-Studio-1.3.0-linux-x86_64.AppImage) <br> [Download Debian (.deb)](https://github.com/joravar/bapu-studio/releases/download/v1.3.0/Bapu-Studio-1.3.0-linux-amd64.deb) <br> [Download Tarball (.tar.gz)](https://github.com/joravar/bapu-studio/releases/download/v1.3.0/Bapu-Studio-1.3.0-linux-x64.tar.gz) | `.AppImage`, `.deb`, `.tar.gz` | ✅ Ready to run |
+| **🍏 macOS (Apple Silicon)** | [**Download macOS DMG**](https://github.com/joravar/bapu-studio/releases/download/v1.4.0/Bapu-Studio-1.4.0-mac-arm64.dmg) <br> [Download macOS Zip](https://github.com/joravar/bapu-studio/releases/download/v1.4.0/Bapu-Studio-1.4.0-mac-arm64.zip) | `.dmg` & `.zip` | ✅ Signed & Notarized by Apple |
+| **🪟 Windows** | [**Download Windows Installer**](https://github.com/joravar/bapu-studio/releases/download/v1.4.0/Bapu-Studio-Setup-1.4.0.exe) <br> [Download Portable .exe](https://github.com/joravar/bapu-studio/releases/download/v1.4.0/Bapu-Studio-Portable-1.4.0.exe) <br> [Download Windows Zip](https://github.com/joravar/bapu-studio/releases/download/v1.4.0/Bapu-Studio-1.4.0-win-x64.zip) | `.exe` (NSIS & Portable) | ✅ Ready to install / run |
+| **🐧 Linux** | [**Download Linux AppImage**](https://github.com/joravar/bapu-studio/releases/download/v1.4.0/Bapu-Studio-1.4.0-linux-x86_64.AppImage) <br> [Download Debian (.deb)](https://github.com/joravar/bapu-studio/releases/download/v1.4.0/Bapu-Studio-1.4.0-linux-amd64.deb) <br> [Download Tarball (.tar.gz)](https://github.com/joravar/bapu-studio/releases/download/v1.4.0/Bapu-Studio-1.4.0-linux-x64.tar.gz) | `.AppImage`, `.deb`, `.tar.gz` | ✅ Ready to run |
+
+---
+
+## ✨ What's New in v1.4.0
+
+* **Data Grid edits now use a real commit/rollback model** (DBeaver-style), instead of writing on every keystroke:
+  * Cell edits, **Add Row**, and **Delete Selected** all stage locally first — edited cells highlight amber, staged new rows show green, rows marked for deletion show struck through with an undo button.
+  * A **"N pending changes"** banner appears with **Save Changes** / **Revert**. Save runs every staged change as **one real transaction** (`BEGIN`/`COMMIT`/`ROLLBACK`) for Postgres, MySQL, and SQLite, or a MongoDB session transaction where the server supports one (every MongoDB Atlas cluster does; a standalone `mongod` does not).
+  * On a standalone MongoDB server, the batch honestly reports that it applied sequentially rather than atomically (`atomic: false`), instead of implying an all-or-nothing guarantee that engine can't actually provide.
+  * Switching tables, connections, or running a new query while changes are pending now asks for confirmation first.
+* **Fix**: cell editing wasn't obviously discoverable — there was only a hover tooltip. The toolbar now shows a persistent "Double-click a cell to edit" hint whenever editing is available.
 
 ---
 
@@ -243,19 +254,24 @@ A couple of things worth knowing:
 
 ## 📊 Data Grid — Current Status
 
-The Data Grid (Database Studio's results view) now supports real **inline editing** for Postgres, MySQL, SQLite, and MongoDB:
+The Data Grid (Database Studio's results view) supports real **inline editing** for Postgres, MySQL, SQLite, and MongoDB, using a DBeaver-style **pending changes → Save/Revert** model rather than writing on every keystroke:
 
-* **Edit a cell** — double-click any non-key cell to edit it in place; Enter (or clicking away) commits a real, parameterized `UPDATE` (or MongoDB `updateOne`) targeted at that row's primary key (`_id` for MongoDB). Clearing a cell sets it to `NULL`.
-* **Add Row** — a form built from the table's real column list (a JSON document editor for MongoDB, since its schema is flexible), inserting via a real parameterized `INSERT`/`insertOne`.
-* **Delete Selected** — check one or more rows and delete them via a real, parameterized `DELETE`/`deleteOne`, after a confirmation prompt.
+* **Edit a cell** — double-click any non-key cell; Enter (or clicking away) stages the new value locally, shown with an amber highlight. Nothing is written yet. Clearing a cell stages it to `NULL`.
+* **Add Row** — a form built from the table's real column list (a JSON document editor for MongoDB, since its schema is flexible) stages a new row, shown at the bottom of the grid with a green tint until saved.
+* **Delete Selected** — check one or more rows to stage them for deletion; they're shown struck through with an undo (↩) button, not actually removed until saved.
+* **Save Changes (N)** — runs every staged edit/insert/delete as **one all-or-nothing batch**: a real transaction (`BEGIN`/`COMMIT`/`ROLLBACK`) for Postgres, MySQL, and SQLite, or a MongoDB session transaction when the server supports one (every MongoDB Atlas cluster, including the free tier, does — a standalone/local `mongod` does not). If a mutation partway through the batch fails, the whole transaction rolls back rather than leaving a partial edit.
+* **Revert** — discards every staged change with no database access at all.
+* Running a new query, switching tables, or switching connections while changes are pending asks for confirmation first, so they're never silently discarded.
+
+**Honesty note on MongoDB:** a standalone MongoDB server (not a replica set) cannot do multi-document transactions at all. Bapu Studio detects this and falls back to applying the batch sequentially — but it reports `atomic: false` and says so in the history log and any error, rather than the UI implying the same all-or-nothing guarantee it gives for Postgres/MySQL/SQLite when that guarantee isn't actually true for that server.
 
 Editing is only offered when it's actually safe to target a specific row, and shows a **Read-only** indicator (with the reason on hover) otherwise:
-* The result on screen has to be a plain browse of one table (`SELECT * FROM that_table` / `collection.find(...)`) — not a JOIN, aggregate, or hand-written query that merely happens to share column names, since editing writes an `UPDATE`/`DELETE` back at that exact table.
+* The result on screen has to be a plain browse of one table (`SELECT * FROM that_table` / `collection.find(...)`) — not a JOIN, aggregate, or hand-written query that merely happens to share column names, since a save writes an `UPDATE`/`DELETE` back at that exact table.
 * The table needs a real primary key (or `_id` for MongoDB) present in the result columns, so a mutation can never guess at which row to hit.
 * The built-in sample/demo database is intentionally read-only — there's no real database behind it to write to, so editing it is refused with a clear message rather than silently pretending to succeed.
 * **Redis stays excluded** — its keyspace browser isn't a row-based table with a stable primary key to edit against.
 
-All generated SQL binds edited values as real query parameters (`$1`/`?` placeholders), never string-concatenated, so typed cell values can't be interpreted as SQL.
+All generated SQL binds staged values as real query parameters (`$1`/`?` placeholders), never string-concatenated, so typed cell values can't be interpreted as SQL.
 
 ---
 

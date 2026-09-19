@@ -19,13 +19,15 @@ import {
   Copy,
   AlertTriangle,
   Trash2,
-  Lock
+  Lock,
+  Pencil,
+  Undo2
 } from 'lucide-react';
 import { DatabaseConnection, TableSchema, SqlScriptTab } from '../../types';
 import { SqliteDropZone } from './SqliteDropZone';
 import { AiCopilotModal } from '../AiCopilot/AiCopilotModal';
 import { NewConnectionModal } from './NewConnectionModal';
-import { DatabaseService } from '../../services/databaseService';
+import { DatabaseService, RowMutation } from '../../services/databaseService';
 import { SAMPLE_PLAYGROUND_DB, SAMPLE_MONGODB_PLAYGROUND_DB } from '../../data/mockData';
 
 interface DatabaseStudioProps {
@@ -136,16 +138,24 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
   const [copiedSql, setCopiedSql] = useState(false);
   const [lastExecutedSql, setLastExecutedSql] = useState<string>('');
 
-  // Data Grid inline editing state (edit cell / add row / delete rows)
+  // Data Grid inline editing state — DBeaver-style: edits/inserts/deletes are staged locally and
+  // shown highlighted, not written to the database until "Save Changes" runs them as one batch
+  // (Ctrl/Cmd not required; the button is always visible once something is pending).
   const [editingCell, setEditingCell] = useState<{ rowKey: string; col: string } | null>(null);
   const [editCellValue, setEditCellValue] = useState('');
-  const [isSavingCell, setIsSavingCell] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(new Set());
   const [isAddRowOpen, setIsAddRowOpen] = useState(false);
   const [newRowValues, setNewRowValues] = useState<Record<string, string>>({});
   const [newRowJson, setNewRowJson] = useState('{\n  \n}');
   const [rowMutationError, setRowMutationError] = useState<string | null>(null);
-  const [isDeletingRows, setIsDeletingRows] = useState(false);
+  const [isSavingChanges, setIsSavingChanges] = useState(false);
+
+  // rowKey -> { column -> staged new value }
+  const [pendingEditsByRow, setPendingEditsByRow] = useState<Record<string, Record<string, any>>>({});
+  // Staged inserts, not yet real rows — no primary key exists for them until they're saved.
+  const [pendingNewRows, setPendingNewRows] = useState<Array<{ tempKey: string; values: Record<string, any> }>>([]);
+  // rowKeys of existing rows staged for deletion.
+  const [pendingDeleteKeys, setPendingDeleteKeys] = useState<Set<string>>(new Set());
 
   // Resizable schema sidebar state
   const [dbSidebarWidth, setDbSidebarWidth] = useState<number>(() => {
@@ -270,11 +280,15 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
     }
   }, [safeDb.id, safeTables.length]);
 
-  // A freshly executed query invalidates any in-progress cell edit / row selection from the previous result.
+  // A freshly executed query invalidates any in-progress cell edit / row selection / pending changes
+  // from the previous result (handleExecuteSql itself warns before discarding unsaved pending changes).
   useEffect(() => {
     setEditingCell(null);
     setRowMutationError(null);
     setSelectedRowKeys(new Set());
+    setPendingEditsByRow({});
+    setPendingNewRows([]);
+    setPendingDeleteKeys(new Set());
   }, [queryResult]);
 
   const handleSelectScriptTab = (tabId: string) => {
@@ -336,7 +350,25 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
     });
   };
 
+  // Any caller that already knows it's about to replace the grid's contents (switching tables, a
+  // quick-action shortcut) should call this itself before touching state, so pending changes are
+  // discarded (with confirmation) at most once — handleExecuteSql only re-checks when invoked with
+  // no override, i.e. the plain "Run Query (F5)" / Ctrl+Enter path.
+  const confirmDiscardPendingChanges = (): boolean => {
+    const pendingCount = Object.keys(pendingEditsByRow).length + pendingNewRows.length + pendingDeleteKeys.size;
+    if (pendingCount === 0) return true;
+    if (!window.confirm(`You have ${pendingCount} unsaved change(s) in the Data Grid. This will discard them. Continue?`)) {
+      return false;
+    }
+    setPendingEditsByRow({});
+    setPendingNewRows([]);
+    setPendingDeleteKeys(new Set());
+    return true;
+  };
+
   const handleExecuteSql = async (overrideQuery?: string) => {
+    if (overrideQuery === undefined && !confirmDiscardPendingChanges()) return;
+
     let queryToRun = overrideQuery;
 
     // If no override was provided, check if user highlighted a specific block in the editor
@@ -468,44 +500,42 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
     return JSON.stringify(editablePkColumns.map(c => row[c]));
   };
 
-  const getRowWhere = (row: any): Record<string, any> => {
-    const where: Record<string, any> = {};
-    (editablePkColumns || []).forEach(c => { where[c] = row[c]; });
-    return where;
-  };
-
   const refreshGridAfterMutation = () => {
     if (lastExecutedSql) handleExecuteSql(lastExecutedSql);
   };
 
-  const commitCellEdit = async (row: any) => {
-    if (!editingCell || !selectedTable) return;
+  const rowKeyToWhere = (rowKey: string): Record<string, any> => {
+    const pkValues: any[] = JSON.parse(rowKey);
+    const where: Record<string, any> = {};
+    (editablePkColumns || []).forEach((c, i) => { where[c] = pkValues[i]; });
+    return where;
+  };
+
+  // Stages an edit locally — nothing is written to the database until "Save Changes" runs the whole
+  // batch. The cell is rendered from `pendingEditsByRow` (see the grid below) until then.
+  const commitCellEdit = (row: any) => {
+    if (!editingCell) return;
     const { col } = editingCell;
-    const originalValue = row[col];
+    const rowKey = getRowKey(row);
+    const currentValue = pendingEditsByRow[rowKey]?.[col] ?? row[col];
     const raw = editCellValue;
-    if (String(originalValue ?? '') === raw) {
+    if (String(currentValue ?? '') === raw) {
       setEditingCell(null);
       return;
     }
     // An emptied cell clears the value to NULL; otherwise the typed text is sent as-is and the
-    // driver/DB coerces it to the column's real type.
+    // driver/DB coerces it to the column's real type once the batch actually saves.
     const newValue = raw === '' ? null : raw;
-
-    setIsSavingCell(true);
-    setRowMutationError(null);
-    const res = await DatabaseService.mutateRow(safeDb, selectedTable.name, 'update', { [col]: newValue }, getRowWhere(row));
-    setIsSavingCell(false);
+    setPendingEditsByRow(prev => ({
+      ...prev,
+      [rowKey]: { ...(prev[rowKey] || {}), [col]: newValue }
+    }));
     setEditingCell(null);
-
-    if (!res.success) {
-      setRowMutationError(res.message || 'Update failed');
-      return;
-    }
-    onRecordHistory(`Updated row in ${selectedTable.name}`, `SET ${col} = ${raw === '' ? 'NULL' : raw}`);
-    refreshGridAfterMutation();
   };
 
-  const handleAddRowSubmit = async () => {
+  // Stages a new row (client-side only — it has no primary key yet, so it can't be targeted for
+  // edit/delete until after it's actually saved).
+  const handleAddRowSubmit = () => {
     if (!selectedTable) return;
     setRowMutationError(null);
 
@@ -526,19 +556,15 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
       });
     }
 
-    setIsSavingCell(true);
-    const res = await DatabaseService.mutateRow(safeDb, selectedTable.name, 'insert', values);
-    setIsSavingCell(false);
-
-    if (!res.success) {
-      setRowMutationError(res.message || 'Insert failed');
-      return;
-    }
-    onRecordHistory(`Inserted row into ${selectedTable.name}`, `${Object.keys(values).length} column(s) set`);
+    const tempKey = `new-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setPendingNewRows(prev => [...prev, { tempKey, values }]);
     setIsAddRowOpen(false);
     setNewRowValues({});
     setNewRowJson('{\n  \n}');
-    refreshGridAfterMutation();
+  };
+
+  const removePendingNewRow = (tempKey: string) => {
+    setPendingNewRows(prev => prev.filter(r => r.tempKey !== tempKey));
   };
 
   const toggleRowSelection = (key: string) => {
@@ -550,33 +576,83 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
   };
 
   const toggleSelectAllRows = () => {
-    if (selectedRowKeys.size === filteredRows.length && filteredRows.length > 0) {
+    const selectableKeys = filteredRows.map(getRowKey).filter(k => !pendingDeleteKeys.has(k));
+    if (selectedRowKeys.size === selectableKeys.length && selectableKeys.length > 0) {
       setSelectedRowKeys(new Set());
     } else {
-      setSelectedRowKeys(new Set(filteredRows.map(getRowKey)));
+      setSelectedRowKeys(new Set(selectableKeys));
     }
   };
 
-  const handleDeleteSelectedRows = async () => {
-    if (!selectedTable || selectedRowKeys.size === 0) return;
-    if (!window.confirm(`Delete ${selectedRowKeys.size} row(s) from ${selectedTable.name}? This cannot be undone.`)) return;
-
-    setIsDeletingRows(true);
-    setRowMutationError(null);
-    const rowsToDelete = filteredRows.filter(row => selectedRowKeys.has(getRowKey(row)));
-    let failures = 0;
-    for (const row of rowsToDelete) {
-      const res = await DatabaseService.mutateRow(safeDb, selectedTable.name, 'delete', {}, getRowWhere(row));
-      if (!res.success) failures += 1;
-    }
-    setIsDeletingRows(false);
+  // Marks the selected rows for deletion — struck through in the grid, but not actually deleted from
+  // the database until "Save Changes" runs.
+  const handleMarkSelectedForDeletion = () => {
+    if (selectedRowKeys.size === 0) return;
+    setPendingDeleteKeys(prev => {
+      const next = new Set(prev);
+      selectedRowKeys.forEach(k => next.add(k));
+      return next;
+    });
     setSelectedRowKeys(new Set());
+  };
 
-    if (failures > 0) {
-      setRowMutationError(`${failures} of ${rowsToDelete.length} row(s) failed to delete.`);
-    } else {
-      onRecordHistory(`Deleted ${rowsToDelete.length} row(s) from ${selectedTable.name}`, '');
+  const undoPendingDelete = (rowKey: string) => {
+    setPendingDeleteKeys(prev => {
+      const next = new Set(prev);
+      next.delete(rowKey);
+      return next;
+    });
+  };
+
+  const pendingChangeCount = Object.keys(pendingEditsByRow).length + pendingNewRows.length + pendingDeleteKeys.size;
+
+  const handleRevertChanges = () => {
+    setPendingEditsByRow({});
+    setPendingNewRows([]);
+    setPendingDeleteKeys(new Set());
+    setRowMutationError(null);
+  };
+
+  // Runs every staged edit/insert/delete as one batch (a real transaction where the engine supports
+  // one — see db:mutate-batch / SqliteService.mutateBatch). Pending state is only cleared on success,
+  // so a failed save never silently drops the user's in-progress edits.
+  const handleSaveChanges = async () => {
+    if (!selectedTable || pendingChangeCount === 0) return;
+    if (pendingDeleteKeys.size > 0 && !window.confirm(`Save changes, including deleting ${pendingDeleteKeys.size} row(s) from ${selectedTable.name}? This cannot be undone.`)) {
+      return;
     }
+
+    const mutations: RowMutation[] = [
+      ...Object.entries(pendingEditsByRow).map(([rowKey, edits]) => ({
+        op: 'update' as const,
+        values: edits,
+        where: rowKeyToWhere(rowKey)
+      })),
+      ...pendingNewRows.map(r => ({ op: 'insert' as const, values: r.values })),
+      ...Array.from(pendingDeleteKeys).map(rowKey => ({ op: 'delete' as const, where: rowKeyToWhere(rowKey) }))
+    ];
+
+    setIsSavingChanges(true);
+    setRowMutationError(null);
+    const res = await DatabaseService.mutateBatch(safeDb, selectedTable.name, mutations);
+    setIsSavingChanges(false);
+
+    if (!res.success) {
+      // Non-atomic failure (e.g. standalone MongoDB) may have already applied some changes — say so
+      // plainly rather than implying nothing happened, and leave pending state as-is either way so
+      // the user doesn't lose track of what they were trying to save.
+      setRowMutationError(res.message || 'Save failed — no changes were applied.');
+      return;
+    }
+
+    onRecordHistory(
+      `Saved ${mutations.length} change(s) to ${selectedTable.name}${res.atomic === false ? ' (not atomic)' : ''}`,
+      res.atomic === false ? (res.message || 'Applied sequentially, not as a single transaction.') : ''
+    );
+
+    setPendingEditsByRow({});
+    setPendingNewRows([]);
+    setPendingDeleteKeys(new Set());
     refreshGridAfterMutation();
   };
 
@@ -647,6 +723,7 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
             <div key={table?.name || Math.random().toString()} style={{ marginBottom: '8px' }}>
               <div
                 onClick={() => {
+                  if (!confirmDiscardPendingChanges()) return;
                   setSelectedTable(table);
                   const query = getDefaultQueryForTable(safeDb.type, table);
                   setSqlQuery(query);
@@ -1035,6 +1112,14 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
 
               {isGridEditable ? (
                 <>
+                  <span
+                    title="Double-click any non-key cell to edit its value"
+                    style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', color: 'var(--text-dim)', padding: '3px 4px', whiteSpace: 'nowrap' }}
+                  >
+                    <Pencil size={11} />
+                    <span>Double-click a cell to edit</span>
+                  </span>
+
                   <button
                     onClick={() => { setNewRowValues({}); setNewRowJson('{\n  \n}'); setRowMutationError(null); setIsAddRowOpen(true); }}
                     className="btn-secondary"
@@ -1046,13 +1131,12 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
 
                   {selectedRowKeys.size > 0 && (
                     <button
-                      onClick={handleDeleteSelectedRows}
-                      disabled={isDeletingRows}
+                      onClick={handleMarkSelectedForDeletion}
                       className="btn-secondary"
                       style={{ fontSize: '11px', padding: '3px 8px', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#fca5a5' }}
                     >
                       <Trash2 size={12} />
-                      <span>{isDeletingRows ? 'Deleting...' : `Delete Selected (${selectedRowKeys.size})`}</span>
+                      <span>Delete Selected ({selectedRowKeys.size})</span>
                     </button>
                   )}
                 </>
@@ -1068,6 +1152,33 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
             </div>
           )}
         </div>
+
+        {/* Pending Changes Banner — DBeaver-style: nothing below is saved until this is clicked */}
+        {pendingChangeCount > 0 && (
+          <div style={{
+            margin: '8px 12px 0',
+            padding: '8px 12px',
+            background: 'rgba(245, 158, 11, 0.1)',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: '11px',
+            color: '#fbbf24',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px'
+          }}>
+            <span>📝 {pendingChangeCount} pending change{pendingChangeCount !== 1 ? 's' : ''} — not yet saved to the database</span>
+            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+              <button onClick={handleRevertChanges} disabled={isSavingChanges} className="btn-secondary" style={{ fontSize: '11px', padding: '4px 10px' }}>
+                Revert
+              </button>
+              <button onClick={handleSaveChanges} disabled={isSavingChanges} className="btn-send" style={{ fontSize: '11px', padding: '4px 12px' }}>
+                {isSavingChanges ? 'Saving...' : `Save Changes (${pendingChangeCount})`}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Row Mutation Error (edit / add / delete) */}
         {rowMutationError && (
@@ -1140,7 +1251,7 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
                       <th style={{ width: '28px' }}>
                         <input
                           type="checkbox"
-                          checked={selectedRowKeys.size > 0 && selectedRowKeys.size === filteredRows.length}
+                          checked={selectedRowKeys.size > 0 && selectedRowKeys.size === filteredRows.filter(r => !pendingDeleteKeys.has(getRowKey(r))).length}
                           onChange={toggleSelectAllRows}
                           title="Select all rows"
                         />
@@ -1160,21 +1271,35 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
                 <tbody>
                   {filteredRows.map((row, rIdx) => {
                     const rowKey = getRowKey(row);
+                    const isPendingDelete = pendingDeleteKeys.has(rowKey);
+                    const rowEdits = pendingEditsByRow[rowKey];
                     return (
-                      <tr key={rIdx}>
+                      <tr key={rIdx} style={isPendingDelete ? { background: 'rgba(239, 68, 68, 0.08)' } : undefined}>
                         {isGridEditable && (
                           <td>
-                            <input
-                              type="checkbox"
-                              checked={selectedRowKeys.has(rowKey)}
-                              onChange={() => toggleRowSelection(rowKey)}
-                            />
+                            {isPendingDelete ? (
+                              <button
+                                onClick={() => undoPendingDelete(rowKey)}
+                                title="Undo delete"
+                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#f87171', display: 'flex', padding: 0 }}
+                              >
+                                <Undo2 size={13} />
+                              </button>
+                            ) : (
+                              <input
+                                type="checkbox"
+                                checked={selectedRowKeys.has(rowKey)}
+                                onChange={() => toggleRowSelection(rowKey)}
+                              />
+                            )}
                           </td>
                         )}
                         {queryResult.columns.map(col => {
                           const isPk = (editablePkColumns || []).includes(col);
-                          const cellEditable = isGridEditable && !isPk;
+                          const cellEditable = isGridEditable && !isPk && !isPendingDelete;
                           const isEditingThisCell = editingCell && editingCell.rowKey === rowKey && editingCell.col === col;
+                          const hasPendingEdit = !!rowEdits && col in rowEdits;
+                          const displayValue = hasPendingEdit ? rowEdits[col] : row[col];
 
                           if (isEditingThisCell) {
                             return (
@@ -1182,7 +1307,6 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
                                 <input
                                   autoFocus
                                   value={editCellValue}
-                                  disabled={isSavingCell}
                                   onChange={(e) => setEditCellValue(e.target.value)}
                                   onBlur={() => commitCellEdit(row)}
                                   onKeyDown={(e) => {
@@ -1211,17 +1335,23 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
                               onDoubleClick={() => {
                                 if (!cellEditable) return;
                                 setEditingCell({ rowKey, col });
-                                setEditCellValue(row[col] === null || row[col] === undefined ? '' : (typeof row[col] === 'object' ? JSON.stringify(row[col]) : String(row[col])));
+                                setEditCellValue(displayValue === null || displayValue === undefined ? '' : (typeof displayValue === 'object' ? JSON.stringify(displayValue) : String(displayValue)));
                               }}
                               title={cellEditable ? 'Double-click to edit' : isPk ? 'Primary key — not editable' : undefined}
-                              style={cellEditable ? { cursor: 'text' } : undefined}
+                              style={{
+                                cursor: cellEditable ? 'text' : undefined,
+                                textDecoration: isPendingDelete ? 'line-through' : undefined,
+                                opacity: isPendingDelete ? 0.6 : 1,
+                                background: hasPendingEdit ? 'rgba(245, 158, 11, 0.12)' : undefined,
+                                boxShadow: hasPendingEdit ? 'inset 2px 0 0 #f59e0b' : undefined
+                              }}
                             >
-                              {row[col] === null || row[col] === undefined ? (
+                              {displayValue === null || displayValue === undefined ? (
                                 <span style={{ opacity: 0.5, fontStyle: 'italic' }}>NULL</span>
-                              ) : typeof row[col] === 'object' ? (
-                                JSON.stringify(row[col])
+                              ) : typeof displayValue === 'object' ? (
+                                JSON.stringify(displayValue)
                               ) : (
-                                String(row[col])
+                                String(displayValue)
                               )}
                             </td>
                           );
@@ -1229,6 +1359,34 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
                       </tr>
                     );
                   })}
+
+                  {isGridEditable && pendingNewRows.map(newRow => (
+                    <tr key={newRow.tempKey} style={{ background: 'rgba(16, 185, 129, 0.08)' }}>
+                      <td>
+                        <button
+                          onClick={() => removePendingNewRow(newRow.tempKey)}
+                          title="Remove this staged row"
+                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#6ee7b7', display: 'flex', padding: 0 }}
+                        >
+                          <X size={13} />
+                        </button>
+                      </td>
+                      {queryResult.columns.map(col => {
+                        const val = newRow.values[col];
+                        return (
+                          <td key={col} style={{ fontStyle: 'italic' }}>
+                            {val === undefined || val === null || val === '' ? (
+                              <span style={{ opacity: 0.5 }}>—</span>
+                            ) : typeof val === 'object' ? (
+                              JSON.stringify(val)
+                            ) : (
+                              String(val)
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             )}
@@ -1417,8 +1575,8 @@ export const DatabaseStudio: React.FC<DatabaseStudioProps> = ({
               <button onClick={() => setIsAddRowOpen(false)} className="btn-secondary">
                 Cancel
               </button>
-              <button onClick={handleAddRowSubmit} disabled={isSavingCell} className="btn-send" style={{ padding: '7px 16px' }}>
-                {isSavingCell ? 'Inserting...' : 'Insert Row'}
+              <button onClick={handleAddRowSubmit} className="btn-send" style={{ padding: '7px 16px' }}>
+                Stage Row
               </button>
             </div>
           </div>

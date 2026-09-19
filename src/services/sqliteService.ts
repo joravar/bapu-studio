@@ -31,6 +31,28 @@ function isReadQuery(sql: string): boolean {
   return /^(SELECT|PRAGMA|EXPLAIN|WITH)\b/.test(trimmed);
 }
 
+// Shared by mutateRow (single, immediate) and mutateBatch (several, transactional).
+function buildMutationSql(table: string, op: 'insert' | 'update' | 'delete', values: Record<string, any>, where: Record<string, any>): { sql: string; params: any[] } {
+  if (op === 'insert') {
+    const cols = Object.keys(values);
+    const params = cols.map(c => values[c]);
+    const sql = `INSERT INTO ${quoteIdent(table)} (${cols.map(quoteIdent).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`;
+    return { sql, params };
+  }
+  if (op === 'update') {
+    const setCols = Object.keys(values);
+    const whereCols = Object.keys(where);
+    const params = [...setCols.map(c => values[c]), ...whereCols.filter(c => where[c] !== null).map(c => where[c])];
+    const setClause = setCols.map(c => `${quoteIdent(c)} = ?`).join(', ');
+    const whereClause = whereCols.map(c => where[c] === null ? `${quoteIdent(c)} IS NULL` : `${quoteIdent(c)} = ?`).join(' AND ');
+    return { sql: `UPDATE ${quoteIdent(table)} SET ${setClause} WHERE ${whereClause}`, params };
+  }
+  const whereCols = Object.keys(where);
+  const params = whereCols.filter(c => where[c] !== null).map(c => where[c]);
+  const whereClause = whereCols.map(c => where[c] === null ? `${quoteIdent(c)} IS NULL` : `${quoteIdent(c)} = ?`).join(' AND ');
+  return { sql: `DELETE FROM ${quoteIdent(table)} WHERE ${whereClause}`, params };
+}
+
 function extractSchema(db: Database): TableSchema[] {
   const tables: TableSchema[] = [];
   const tableList = db.exec(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name;`);
@@ -148,38 +170,33 @@ export const SqliteService = {
     }
   },
 
-  mutateRow(dbId: string, table: string, op: 'insert' | 'update' | 'delete', values: Record<string, any> = {}, where: Record<string, any> = {}): { success: boolean; rowsAffected?: number; message?: string } {
+  // DBeaver-style "pending changes, then Save/Revert" batch — a real SQLite transaction, so a failure
+  // partway through rolls back everything already applied in this batch rather than leaving a partial edit.
+  mutateBatch(
+    dbId: string,
+    table: string,
+    mutations: Array<{ op: 'insert' | 'update' | 'delete'; values?: Record<string, any>; where?: Record<string, any> }>
+  ): { success: boolean; atomic: boolean; results?: Array<{ op: string; rowsAffected: number }>; message?: string } {
     const db = liveDatabases.get(dbId);
     if (!db) {
-      return { success: false, message: 'This SQLite database is not loaded in the current session — drag & drop the file again to reconnect.' };
+      return { success: false, atomic: true, message: 'This SQLite database is not loaded in the current session — drag & drop the file again to reconnect.' };
+    }
+    if (mutations.length === 0) {
+      return { success: true, atomic: true, results: [] };
     }
 
+    db.exec('BEGIN');
     try {
-      let sql: string;
-      let params: any[];
-
-      if (op === 'insert') {
-        const cols = Object.keys(values);
-        params = cols.map(c => values[c]);
-        sql = `INSERT INTO ${quoteIdent(table)} (${cols.map(quoteIdent).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`;
-      } else if (op === 'update') {
-        const setCols = Object.keys(values);
-        const whereCols = Object.keys(where);
-        params = [...setCols.map(c => values[c]), ...whereCols.filter(c => where[c] !== null).map(c => where[c])];
-        const setClause = setCols.map(c => `${quoteIdent(c)} = ?`).join(', ');
-        const whereClause = whereCols.map(c => where[c] === null ? `${quoteIdent(c)} IS NULL` : `${quoteIdent(c)} = ?`).join(' AND ');
-        sql = `UPDATE ${quoteIdent(table)} SET ${setClause} WHERE ${whereClause}`;
-      } else {
-        const whereCols = Object.keys(where);
-        params = whereCols.filter(c => where[c] !== null).map(c => where[c]);
-        const whereClause = whereCols.map(c => where[c] === null ? `${quoteIdent(c)} IS NULL` : `${quoteIdent(c)} = ?`).join(' AND ');
-        sql = `DELETE FROM ${quoteIdent(table)} WHERE ${whereClause}`;
-      }
-
-      db.run(sql, params);
-      return { success: true, rowsAffected: db.getRowsModified() };
+      const results = mutations.map(m => {
+        const { sql, params } = buildMutationSql(table, m.op, m.values || {}, m.where || {});
+        db.run(sql, params);
+        return { op: m.op, rowsAffected: db.getRowsModified() };
+      });
+      db.exec('COMMIT');
+      return { success: true, atomic: true, results };
     } catch (err: any) {
-      return { success: false, message: err.message || 'SQLite row mutation error' };
+      try { db.exec('ROLLBACK'); } catch {}
+      return { success: false, atomic: true, message: err.message || 'SQLite batch mutation error' };
     }
   },
 
