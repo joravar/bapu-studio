@@ -1,0 +1,30 @@
+name: Publish to winget-pkgs
+
+# Automatically submits each new GitHub Release to Microsoft's community winget-pkgs repo,
+# so `winget install Joravar.BapuStudio` stays up to date without a manual PR each release.
+#
+# One-time setup required before this does anything:
+#   1. Create a fine-grained GitHub Personal Access Token with public_repo scope (classic PAT)
+#      or "Pull requests: write" + "Contents: write" on microsoft/winget-pkgs (fine-grained),
+#      under the account that will open the PR (can be this account).
+#   2. Add it as a repository secret named WINGET_TOKEN
+#      (Settings -> Secrets and variables -> Actions -> New repository secret).
+#   3. The very first submission to winget-pkgs for a brand-new package is usually easiest to
+#      do once by hand (via `wingetcreate` or a manual PR) so the PackageIdentifier
+#      "Joravar.BapuStudio" exists; after that, this workflow keeps it updated on every release.
+#
+# Until WINGET_TOKEN is added, this workflow runs and no-ops (the action fails fast with a
+# clear "token" error) rather than silently doing nothing -- check the Actions tab if unsure.
+on:
+  release:
+    types: [released]
+
+jobs:
+  publish-winget:
+    runs-on: windows-latest
+    steps:
+      - uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: Joravar.BapuStudio
+          installers-regex: 'Bapu-Studio-Setup-.*\.exe$' # NSIS installer only -- not the portable exe
+          token: ${{ secrets.WINGET_TOKEN }}

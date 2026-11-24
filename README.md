@@ -49,6 +49,8 @@ Direct native installer packages are available on [GitHub Releases (v1.4.0)](htt
 
 ---
 
+> **Windows note:** the Windows build isn't code-signed yet. Microsoft Defender SmartScreen will show an "Unknown Publisher" warning on first launch — this is expected for an unsigned app, not a sign of malware. Click **More info → Run anyway** to proceed. A code-signing certificate is in progress; macOS (signed & notarized by Apple) and Linux builds are unaffected.
+
 ## ✨ What's New in v1.4.0
 
 * **Data Grid edits now use a real commit/rollback model** (DBeaver-style), instead of writing on every keystroke:
