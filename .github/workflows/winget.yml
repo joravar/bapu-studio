@@ -23,8 +23,12 @@ jobs:
   publish-winget:
     runs-on: windows-latest
     steps:
-      - uses: vedantmgoyal9/winget-releaser@v2
+      - name: Submit release to winget-pkgs
+        if: env.HAS_WINGET_TOKEN == 'true'
+        env:
+          HAS_WINGET_TOKEN: ${{ secrets.WINGET_TOKEN != '' }}
+        uses: vedantmgoyal9/winget-releaser@v2
         with:
           identifier: Joravar.BapuStudio
-          installers-regex: 'Bapu-Studio-Setup-.*\.exe$' # NSIS installer only -- not the portable exe
+          installers-regex: 'Bapu-Studio-(Setup|Portable)-.*\.exe$'
           token: ${{ secrets.WINGET_TOKEN }}

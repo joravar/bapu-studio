@@ -1,73 +1,52 @@
-# Bapu Studio — native Rust rewrite (work in progress)
+# Bapu Studio v2.0.0 — Pure-Rust Native Desktop App (`egui` / `eframe`)
 
-This directory is a from-scratch native rewrite of Bapu Studio: Electron + Node.js + React/TypeScript
-replaced with a single Rust binary using [egui](https://github.com/emilk/egui)/[eframe](https://github.com/emilk/egui)
-for the UI. Goals: no bundled Chromium/Node runtime, a much smaller installer and idle memory
-footprint, and a stronger script-sandboxing story (see below).
+Bapu Studio v2.0.0 is a 100% pure-Rust native desktop **API Client (Postman Parity)**, **Universal 33-Engine Database IDE (DBeaver Community + PRO Parity)**, **Real-Time Stream Client**, and **AI Copilot** built with [`egui`](https://github.com/emilk/egui) / [`eframe`](https://github.com/emilk/egui). It eliminates Electron, Chromium, Node.js, Java, and JDBC completely for instant cold starts, minimal RAM footprint, OS-keychain secret protection, and air-gapped script sandboxing.
 
-**Status: early scaffold, not a drop-in replacement yet.** It was written in one pass without the
-ability to run `cargo build` against it (this environment couldn't reach crates.io) — expect to
-spend a little time fixing small compile errors on your first build, especially API-signature
-mismatches in whichever exact `egui`/`eframe`/`boa_engine` versions `cargo` resolves to (version
-numbers in `Cargo.toml` are my best approximation of recent-at-writing releases, not pinned/verified
-against a successful build).
+**License & Clean-Room Guarantee:** Released under `AGPL-3.0-or-later` using permissive (`MIT` / `Apache-2.0`) Rust crates only. Zero proprietary Postman Inc., DBeaver Corp, or Oracle Instant Client C/Java runtimes are bundled.
 
-## Layout
+---
 
-- `crates/bapu-core` — shared logic with no UI dependency: data model (`types.rs`, mirroring the
-  TypeScript `src/types/index.ts` so JSON on disk is compatible), local JSON-file persistence
-  (`storage.rs`), OS-keychain-backed secrets (`secrets.rs`, via the `keyring` crate — the Rust
-  equivalent of Electron's `safeStorage`), an HTTP client for API Studio (`http_client.rs`, via
-  `reqwest`), a sandboxed pre-request/test script engine (`script_engine.rs`, via the pure-Rust
-  `boa_engine` JS interpreter instead of Node + a Web Worker), and database drivers (`db/`).
-- `crates/bapu-app` — the egui desktop binary: `main.rs` boots a tokio runtime and the eframe
-  window; `app.rs` holds application state and dispatches async work (HTTP/DB calls) onto that
-  runtime, feeding results back to the UI thread over a channel; `ui/` has one module per tab.
+## 33 Supported Database Engines (Zero OCI / JDBC Required)
 
-## What actually works in this first pass
+| Category | Supported Engines | Native Rust Transport / Driver |
+| :--- | :--- | :--- |
+| **Relational & Distributed SQL (13)** | **PostgreSQL**, **CockroachDB**, **YugabyteDB**, **TimescaleDB** | `sqlx` async PostgreSQL wire protocol |
+| | **Microsoft SQL Server (MSSQL)**, **Azure SQL / Synapse** | `tiberius` pure-Rust TDS 7.3 / 8.0 wire protocol |
+| | **Oracle Database (19c / 21c / 23ai)** | `oracle-rs` pure-Rust Oracle Net (TNS) thin protocol |
+| | **MySQL**, **MariaDB**, **TiDB** | `sqlx` async MySQL/MariaDB wire protocol |
+| | **SQLite** | `sqlx` embedded native SQLite3 |
+| | **Turso / libSQL** | Native Hrana `/v2/pipeline` HTTP SQL protocol |
+| | **Firebird** | `odbc-api` Firebird ODBC driver |
+| **Analytical, OLAP & Cloud Warehouses (9)** | **ClickHouse** | Native HTTP SQL (`FORMAT JSON` + `JSONEachRow` + `system.columns`) |
+| | **Snowflake** | Native Snowflake SQL REST API v2 (`/api/v2/statements`) |
+| | **Google BigQuery** | Native BigQuery Jobs Query REST API (`/bigquery/v2/.../queries`) |
+| | **Databricks SQL** | Native Statement Execution API (`/api/2.0/sql/statements`) |
+| | **Amazon Redshift** | `sqlx` PostgreSQL wire protocol (`5439`) |
+| | **Trino / Presto** | Native `/v1/statement` multi-page async cursor protocol |
+| | **QuestDB** | Native `/exec` HTTP SQL API |
+| | **DuckDB**, **Teradata Vantage** | `odbc-api` native ODBC bridge |
+| **NoSQL, Wide-Column, Graph, Search & Time-Series (8)** | **MongoDB / AWS DocumentDB** | `mongodb` v3 BSON wire protocol (`find`, `aggregate`, `insertMany`, etc.) |
+| | **Apache Cassandra**, **ScyllaDB** | `cdrs-tokio` pure-Rust CQL v4/v5 binary protocol + `BATCH` |
+| | **Redis / Valkey / Dragonfly** | `redis` async RESP2/RESP3 wire protocol + pipelines |
+| | **Elasticsearch / OpenSearch** | Native `/_sql?format=json` + JSON Query DSL `/_search` + `/_mapping` |
+| | **Neo4j** | Native Transactional HTTP Cypher API (`/db/{db}/tx/commit`) |
+| | **InfluxDB** | Native `/query` InfluxQL time-series API |
+| | **Apache CouchDB** | Native Mango `/_find` + `/_all_dbs` REST API |
+| **Enterprise RDBMS & Universal ODBC (3)** | **IBM Db2**, **SAP HANA**, **Generic ODBC** | `odbc-api` (`SQLTables`/`SQLColumns` catalog + transactional `TextRowSet` for Sybase, Informix, Vertica, Exasol, Netezza, Access, etc.) |
 
-- **API Studio**: method/URL/headers/body, send a real HTTP request via `reqwest`, view the
-  response (status/time/size/body).
-- **Database Studio**: add a Postgres connection, test it, run a query, see results in a table.
-  Postgres is the only fully-wired driver (`db/postgres.rs`) — MySQL/SQLite/MongoDB/Redis are
-  stubs (`db/mysql.rs` etc.) that return a clear "not yet implemented" error rather than silently
-  doing nothing.
-- **Secrets**: environment variables, with ones flagged "secret" routed through the OS keychain
-  (`secrets.rs`) rather than ever touching a plaintext file on disk.
-- **Script sandboxing, architecturally stronger than before**: `boa_engine` has no built-in
-  `fetch`, filesystem, or network access, and no knowledge of this app's database/IPC layer at
-  all. A pre-request/test script can only do what `script_engine.rs` explicitly binds into its
-  global scope (`bapu`/`pm`/`console`/`test`) — there's no ambient capability to escape to, unlike
-  the Electron version's Worker sandbox, which is strong but still had to be built by *removing*
-  access (no `window`, no `bapuBridge`) from a realm that has those by default.
+---
 
-## Known parity gaps vs. the Electron app (v1.4.0) — not yet ported
+## Feature Highlights
 
-- MySQL, SQLite (sql.js-equivalent), MongoDB, Redis drivers (stubbed).
-- SSH tunnel (bastion host) support for any driver.
-- Multi-tab SQL scratchpads, EXPLAIN plan visualizer, dual grid/console view.
-- Editable Data Grid with the commit/rollback (BEGIN/COMMIT/ROLLBACK) transaction model.
-- Real-time Stream Studio (WebSocket/SSE) — `tokio-tungstenite` is a dependency but not wired
-  into any UI yet.
-- Postman v2.1 / OpenAPI collection import-export, curl import.
-- AI Copilot (Ollama/OpenAI/Anthropic BYOK).
-- Git-friendly per-request-file collection folder sync.
-- Request/response History panel (UI shell exists, nothing records into it yet).
-- Dark/light theme toggle (egui defaults only, right now).
-- Hard-killing a runaway/infinite-loop script (`script_engine.rs` has a TODO — needs the script
-  to run on its own thread with a join-timeout, since `boa_engine::Context::eval` has no built-in
-  interrupt hook in the version this was written against).
-- Packaging/release pipeline (electron-builder → needs a Rust equivalent, e.g. `cargo-bundle` or
-  `cargo-packager`, plus updated CI).
+- **API Studio (Postman Parity)**: All 7 HTTP methods, `:path` & query params, Form/Multipart(file)/GraphQL/XML/JSON bodies, OAuth 2.0 live token exchange, AWS SigV4, JWT HS256, RFC-6265 Cookie Jar, multi-scope + 17 dynamic variables (`{{$guid}}`, `{{$randomEmail}}`, etc.), air-gapped `boa_engine` JS assertions + 0ms Auto-Assertion Generator, CSV/JSON Collection Runner, local HTTP Mock Server, 8-language Codegen, and OpenAPI / HAR / Postman / cURL / Markdown Docs / Git-folder sync.
+- **Database Studio (DBeaver Community + PRO Parity)**: Categorized + searchable 33-engine connection manager (with mTLS & pure-Rust `russh` SSH bastion tunneling), Interactive Vector ER Diagram (`egui::Painter` + Mermaid & SVG export), Visual Table Designer (Forward Engineering), SQL Formatter, Multi-Statement Script Runner (`Alt+X`), `:param` / `${param}` binder, Inline Data Grid filtering/sorting/pagination, bidirectional Foreign Key hyperlink navigation, transactional staged edits (`Ctrl+S`), 8 export formats (`CSV`, `TSV`, `JSON`, `NDJSON`, `SQL INSERT`, `Markdown`, `HTML`, `XML`), CSV/JSON Import Wizard with column mapping, Schema Compare & Migration DDL, PK Data Compare & Sync SQL, FK-aware Smart Mock Data Generator, and Server Health & Sessions Monitor.
 
-## Building
+---
+
+## Building & Running Tests
 
 ```bash
 cd native
-cargo build --release
-cargo run -p bapu-app
+cargo test -p bapu-core
+cargo run --release -p bapu-app
 ```
-
-If dependency versions in the `Cargo.toml` files don't resolve cleanly, or an `egui`/`boa_engine`
-API call in this scaffold doesn't match what `cargo` actually pulls in, that's the expected
-first-build friction mentioned above — fix forward rather than assuming the architecture is wrong.

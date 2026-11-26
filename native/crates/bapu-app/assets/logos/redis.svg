@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#A41E11"/>
+  <rect x="3" y="3" width="58" height="58" rx="13" fill="none" stroke="#FCA5A5" stroke-opacity="0.35" stroke-width="2"/>
+  <!-- Redis Stacked Layers + Star/Cube -->
+  <polygon points="32,34 52,42 32,50 12,42" fill="#DC382D"/>
+  <polygon points="32,26 52,34 32,42 12,34" fill="#EF4444"/>
+  <polygon points="32,16 52,24 32,32 12,24" fill="#FCA5A5"/>
+  <polygon points="25,21 30,21 32,18 34,21 39,21 35,24 36,27 32,25 28,27 29,24" fill="#FFFFFF"/>
+</svg>

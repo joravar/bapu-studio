@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#023430"/>
+  <rect x="3" y="3" width="58" height="58" rx="13" fill="none" stroke="#00ED64" stroke-opacity="0.35" stroke-width="2"/>
+  <!-- MongoDB Leaf -->
+  <path d="M32 11 C23 20 19 28 21 37 C23 44 28 48 32 50 C36 48 41 44 43 37 C45 28 41 20 32 11 Z" fill="#00ED64"/>
+  <path d="M32 11 C32 24 32 37 32 50 C36 48 41 44 43 37 C45 28 41 20 32 11 Z" fill="#10AA50"/>
+  <path d="M32 22 L32 54" stroke="#A7F3D0" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

@@ -1,22 +1,36 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod app;
 mod ui;
+
+fn load_app_icon() -> Option<egui::IconData> {
+    let bytes = include_bytes!("../assets/logo.png");
+    let img = image::load_from_memory(bytes).ok()?.into_rgba8();
+    let (width, height) = img.dimensions();
+    Some(egui::IconData {
+        rgba: img.into_raw(),
+        width,
+        height,
+    })
+}
 
 fn main() -> eframe::Result<()> {
     env_logger::init();
 
-    // A multi-thread tokio runtime backs every async call this app makes (HTTP requests, DB
-    // queries). `eframe::run_native` blocks the current (main) thread running the UI event
-    // loop, so async work is spawned onto this runtime's worker threads and results are sent
-    // back to the UI thread over a channel (see `app::BapuApp::poll_async_results`) rather than
-    // ever `.await`-ed directly inside egui's synchronous `update()` callback.
     let runtime = tokio::runtime::Runtime::new().expect("failed to start the async runtime");
     let handle = runtime.handle().clone();
 
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_inner_size([1380.0, 880.0])
+        .with_min_inner_size([1020.0, 660.0])
+        .with_title("Bapu Studio — Developer Cockpit");
+
+    if let Some(icon) = load_app_icon() {
+        viewport = viewport.with_icon(icon);
+    }
+
     let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1320.0, 860.0])
-            .with_min_inner_size([960.0, 620.0])
-            .with_title("Bapu Studio — Developer Cockpit"),
+        viewport,
         ..Default::default()
     };
 
@@ -25,7 +39,4 @@ fn main() -> eframe::Result<()> {
         native_options,
         Box::new(move |cc| Ok(Box::new(app::BapuApp::new(cc, handle)))),
     )
-
-    // `runtime` is still alive here (not dropped until main() returns), so its worker threads
-    // keep running for the whole lifetime of `run_native`'s blocking event loop above.
 }

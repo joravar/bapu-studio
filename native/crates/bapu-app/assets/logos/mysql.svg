@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#00618A"/>
+  <rect x="3" y="3" width="58" height="58" rx="13" fill="none" stroke="#38BDF8" stroke-opacity="0.3" stroke-width="2"/>
+  <!-- Stylized MySQL Dolphin Arc -->
+  <path d="M14 42 C17 28 28 17 44 16 C40 21 39 26 42 30 C46 31 50 34 52 38 C46 37 42 38 39 41 C34 35 25 36 19 45 Z" fill="#F29111"/>
+  <path d="M16 47 C23 41 33 41 43 47" fill="none" stroke="#7DD3FC" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="37" cy="24" r="2" fill="#00618A"/>
+</svg>

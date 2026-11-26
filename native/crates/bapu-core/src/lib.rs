@@ -1,8 +1,26 @@
+pub mod ai_copilot;
+pub mod assertion_gen;
+pub mod auth;
+pub mod codegen;
+pub mod collection_io;
+pub mod collection_sync;
+pub mod cookies;
+pub mod curl;
 pub mod db;
+pub mod db_admin;
+pub mod db_ddl;
+pub mod db_diff;
+pub mod db_export_import;
+pub mod db_mock_gen;
+pub mod db_sql_tools;
+pub mod env_vars;
 pub mod http_client;
+pub mod mock_server;
+pub mod runner;
 pub mod script_engine;
 pub mod secrets;
 pub mod storage;
+pub mod stream_client;
 pub mod types;
 
 pub use storage::Storage;

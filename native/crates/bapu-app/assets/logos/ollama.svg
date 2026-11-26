@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#111827"/>
+  <rect x="3" y="3" width="58" height="58" rx="13" fill="none" stroke="#94A3B8" stroke-opacity="0.35" stroke-width="2"/>
+  <!-- Stylized Llama Head for Ollama -->
+  <path d="M23 48 L23 26 L19 16 L26 21 L38 21 L45 16 L41 26 L41 48 Z" fill="#F8FAFC"/>
+  <circle cx="28" cy="31" r="2.5" fill="#0F172A"/>
+  <circle cx="36" cy="31" r="2.5" fill="#0F172A"/>
+  <rect x="29" y="36" width="6" height="4" rx="2" fill="#0F172A"/>
+</svg>

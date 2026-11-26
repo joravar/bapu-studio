@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="sqGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0F80CC"/>
+      <stop offset="100%" stop-color="#003B57"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#sqGrad)"/>
+  <rect x="3" y="3" width="58" height="58" rx="13" fill="none" stroke="#7DD3FC" stroke-opacity="0.35" stroke-width="2"/>
+  <!-- SQLite Feather Quill -->
+  <path d="M45 14 C33 16 23 27 20 43 L17 50 L23 45 C35 42 45 32 47 18 Z" fill="#E0F2FE"/>
+  <path d="M44 16 L18 49" stroke="#0284C7" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M36 27 L43 26 M31 34 L39 33" stroke="#0284C7" stroke-width="2" stroke-linecap="round"/>
+</svg>
