@@ -17,3 +17,6 @@ Thumbs.db
 # Local private notes & founder strategy
 .local-stuff/
 
+
+# Local Claude Code tool-permission settings (machine-specific, not useful to other contributors)
+.claude/
