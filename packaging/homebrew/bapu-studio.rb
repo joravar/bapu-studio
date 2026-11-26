@@ -19,18 +19,18 @@
 # runner with no explicit Intel target, so there is currently no mac-x64 asset to point to.
 # If an Intel build is added later, this can be split into arm/intel sha256 + arch variants.
 cask "bapu-studio" do
-  version "1.4.0"
-  sha256 "REPLACE_WITH_SHA256_OF_Bapu-Studio-#{version}-mac-arm64.dmg"
+  version "2.0.0"
+  sha256 "REPLACE_WITH_SHA256_OF_bapu-studio-macos-arm64.tar.gz"
 
-  url "https://github.com/joravar/bapu-studio/releases/download/v#{version}/Bapu-Studio-#{version}-mac-arm64.dmg"
+  url "https://github.com/joravar/bapu-studio/releases/download/v#{version}/bapu-studio-macos-arm64.tar.gz"
   name "Bapu Studio"
-  desc "Local-first developer cockpit for APIs, databases, and secrets"
+  desc "Pure-Rust native developer cockpit for APIs, 33 database engines, streams, and secrets"
   homepage "https://joravar.github.io/bapu-studio/"
 
   depends_on arch: :arm64
   depends_on macos: ">= :big_sur"
 
-  app "Bapu Studio.app"
+  binary "bapu-studio"
 
   zap trash: [
     "~/Library/Application Support/Bapu Studio",

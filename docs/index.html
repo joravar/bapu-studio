@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bapu Studio — The Honest Open-Source Developer Cockpit</title>
-  <meta name="description" content="Replace bloated developer tools. Bapu Studio combines an API Client, SQL/NoSQL Database Studio, Secrets Matrix, and a local AI Copilot in one lightweight, offline-first desktop app.">
+  <title>Bapu Studio v2.0 — Pure-Rust Native Open-Source Developer Cockpit</title>
+  <meta name="description" content="100% pure-Rust native desktop cockpit uniting a Postman-class API Studio, a 33-Engine DBeaver-class Database IDE (Postgres, MSSQL, Oracle, MySQL, Snowflake, BigQuery, ClickHouse, Mongo, Redis, Cassandra, ODBC), WebSocket/SSE Streams, OS-Keychain Vault, and Local/BYOK AI Copilot.">
   <link rel="icon" type="image/png" href="assets/logo.png">
 
   <!-- Fonts -->
@@ -24,6 +24,8 @@
       --emerald: #10b981;
       --cyan: #06b6d4;
       --amber: #f59e0b;
+      --violet: #8b5cf6;
+      --rose: #ef4444;
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
       --text-dim: #64748b;
@@ -45,7 +47,6 @@
       overflow-x: hidden;
     }
 
-    /* Container */
     .container {
       max-width: 1200px;
       margin: 0 auto;
@@ -57,7 +58,7 @@
       border-bottom: 1px solid var(--border);
       position: sticky;
       top: 0;
-      background: rgba(7, 9, 14, 0.85);
+      background: rgba(7, 9, 14, 0.88);
       backdrop-filter: blur(12px);
       z-index: 100;
     }
@@ -80,21 +81,22 @@
     }
 
     .brand-icon {
-      width: 26px;
-      height: 26px;
+      width: 28px;
+      height: 28px;
       border-radius: 7px;
       flex-shrink: 0;
       box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35);
     }
 
     .brand-badge {
-      font-size: 10px;
-      background: rgba(59, 130, 246, 0.15);
-      color: #60a5fa;
-      border: 1px solid rgba(59, 130, 246, 0.3);
-      padding: 2px 8px;
+      font-size: 10.5px;
+      background: rgba(16, 185, 129, 0.14);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      padding: 2px 9px;
       border-radius: 999px;
       font-weight: 700;
+      font-family: var(--font-mono);
     }
 
     .nav-links {
@@ -137,20 +139,21 @@
 
     /* Hero */
     .hero {
-      padding: 80px 0 60px;
+      padding: 80px 0 56px;
       text-align: center;
+      background: radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.12) 0%, transparent 58%);
     }
 
     .pill-badge {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
       background: rgba(16, 185, 129, 0.1);
-      border: 1px solid rgba(16, 185, 129, 0.3);
+      border: 1px solid rgba(16, 185, 129, 0.32);
       color: #34d399;
-      font-size: 12px;
+      font-size: 12.5px;
       font-weight: 600;
-      padding: 6px 14px;
+      padding: 6px 16px;
       border-radius: 999px;
       margin-bottom: 24px;
     }
@@ -159,8 +162,8 @@
       font-size: 52px;
       font-weight: 800;
       letter-spacing: -0.03em;
-      line-height: 1.15;
-      max-width: 900px;
+      line-height: 1.13;
+      max-width: 940px;
       margin: 0 auto 20px;
       color: #ffffff;
     }
@@ -168,7 +171,7 @@
     .hero p {
       font-size: 18px;
       color: var(--text-muted);
-      max-width: 680px;
+      max-width: 780px;
       margin: 0 auto 36px;
     }
 
@@ -176,7 +179,7 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      gap: 16px;
+      gap: 14px;
       flex-wrap: wrap;
     }
 
@@ -187,11 +190,11 @@
       background: var(--primary);
       color: #fff;
       text-decoration: none;
-      padding: 14px 28px;
+      padding: 14px 26px;
       border-radius: 10px;
       font-size: 15px;
       font-weight: 700;
-      box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.4);
+      box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.42);
       transition: all 0.2s;
     }
 
@@ -200,47 +203,107 @@
       transform: translateY(-2px);
     }
 
-    .btn-download-mac {
+    .btn-download-alt {
       display: inline-flex;
       align-items: center;
       gap: 10px;
-      background: #1e293b;
+      background: #141a23;
       color: #fff;
       text-decoration: none;
-      padding: 14px 24px;
+      padding: 14px 22px;
       border-radius: 10px;
-      font-size: 15px;
+      font-size: 14.5px;
       font-weight: 600;
       border: 1px solid var(--border-focus);
       transition: all 0.2s;
     }
 
-    .btn-download-mac:hover {
-      background: #334155;
-      transform: translateY(-2px);
-    }
-
-    .btn-download-linux {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
+    .btn-download-alt:hover {
       background: #1e293b;
-      color: #fff;
-      text-decoration: none;
-      padding: 14px 24px;
-      border-radius: 10px;
-      font-size: 15px;
-      font-weight: 600;
-      border: 1px solid var(--border-focus);
-      transition: all 0.2s;
-    }
-
-    .btn-download-linux:hover {
-      background: #334155;
       transform: translateY(-2px);
     }
 
-    /* Mockup Tabs & Toolbar */
+    .sub-release-links {
+      margin-top: 14px;
+      font-size: 12.5px;
+      color: var(--text-dim);
+    }
+
+    .sub-release-links a {
+      color: var(--text-muted);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .sub-release-links a:hover {
+      color: #fff;
+    }
+
+    /* Stats Strip */
+    .stats-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      max-width: 980px;
+      margin: 40px auto 0;
+    }
+
+    .stat-box {
+      background: rgba(13, 17, 23, 0.9);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .stat-num {
+      font-size: 24px;
+      font-weight: 800;
+      color: #fff;
+      font-family: var(--font-mono);
+    }
+
+    .stat-lbl {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* App Preview Mockup */
+    .mockup-wrapper {
+      margin: 48px auto 72px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 12px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75);
+      max-width: 1120px;
+      text-align: left;
+    }
+
+    .mockup-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .dots {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #10b981; }
+
     .mockup-tabs {
       display: flex;
       align-items: center;
@@ -248,6 +311,7 @@
       background: #090d14;
       padding: 6px 12px 0;
       border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
     }
 
     .mockup-tab {
@@ -255,7 +319,6 @@
       border-radius: 6px 6px 0 0;
       font-size: 12px;
       color: var(--text-muted);
-      cursor: pointer;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -269,73 +332,10 @@
       border-top: 2px solid var(--primary);
     }
 
-    .mockup-toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 10px 0;
-      margin-bottom: 12px;
-      flex-wrap: wrap;
-    }
-
-    .mockup-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 5px 12px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      border: 1px solid var(--border);
-      background: #141a23;
-      color: var(--text-main);
-    }
-
-    .mockup-btn-primary {
-      background: rgba(16, 185, 129, 0.15);
-      color: #34d399;
-      border-color: rgba(16, 185, 129, 0.3);
-    }
-
-    .mockup-btn-accent {
-      background: rgba(59, 130, 246, 0.15);
-      color: #60a5fa;
-      border-color: rgba(59, 130, 246, 0.3);
-    }
-
-    /* App Preview Mockup */
-    .mockup-wrapper {
-      margin: 50px auto 80px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 12px;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
-      max-width: 1100px;
-    }
-
-    .mockup-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px 14px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-    }
-    .dot-red { background: #ef4444; }
-    .dot-yellow { background: #f59e0b; }
-    .dot-green { background: #10b981; }
-
     .mockup-body {
       display: grid;
-      grid-template-columns: 240px 1fr;
-      min-height: 480px;
+      grid-template-columns: 255px 1fr;
+      min-height: 460px;
       background: #090d14;
       border-radius: 8px;
       overflow: hidden;
@@ -349,13 +349,14 @@
     }
 
     .mockup-sidebar-item {
-      padding: 8px 12px;
+      padding: 8px 10px;
       border-radius: 6px;
       font-size: 12px;
       color: var(--text-muted);
       margin-bottom: 4px;
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 8px;
     }
 
@@ -366,16 +367,51 @@
     }
 
     .mockup-content {
-      padding: 24px;
+      padding: 22px;
       font-family: var(--font-mono);
       font-size: 13px;
     }
 
+    .mockup-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 0 12px;
+      flex-wrap: wrap;
+    }
+
+    .mockup-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 11px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: #141a23;
+      color: var(--text-main);
+    }
+
+    .mockup-btn-primary {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.35);
+    }
+
+    .mockup-btn-accent {
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      border-color: rgba(59, 130, 246, 0.35);
+    }
+
     .mockup-query-bar {
       display: flex;
-      gap: 8px;
+      flex-wrap: wrap;
+      gap: 7px;
       background: #141a23;
-      padding: 8px 12px;
+      padding: 10px 14px;
       border-radius: 8px;
       border: 1px solid var(--border);
       margin-bottom: 16px;
@@ -400,6 +436,57 @@
       color: var(--text-main);
     }
 
+    /* 33 Engines Section */
+    .engines-section {
+      padding: 72px 0;
+      border-top: 1px solid rgba(30, 41, 59, 0.6);
+      border-bottom: 1px solid rgba(30, 41, 59, 0.6);
+      background: rgba(13, 17, 23, 0.45);
+    }
+
+    .engine-cat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(265px, 1fr));
+      gap: 20px;
+    }
+
+    .engine-cat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px;
+    }
+
+    .engine-cat-card h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #60a5fa;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 12px;
+    }
+
+    .engine-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .engine-pill {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      background: #141a23;
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 4px 9px;
+      border-radius: 6px;
+    }
+
+    .engine-pill.highlight {
+      border-color: rgba(16, 185, 129, 0.45);
+      color: #34d399;
+    }
+
     /* Feature Grid */
     .features-section {
       padding: 80px 0;
@@ -407,7 +494,7 @@
 
     .section-title {
       text-align: center;
-      margin-bottom: 50px;
+      margin-bottom: 48px;
     }
 
     .section-title h2 {
@@ -421,19 +508,22 @@
       color: var(--text-muted);
       font-size: 16px;
       margin-top: 8px;
+      max-width: 720px;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     .feature-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 24px;
+      grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+      gap: 22px;
     }
 
     .feature-card {
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 28px;
+      padding: 26px;
       transition: all 0.2s;
     }
 
@@ -444,18 +534,18 @@
     }
 
     .feature-icon {
-      width: 44px;
-      height: 44px;
+      width: 42px;
+      height: 42px;
       border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 20px;
-      margin-bottom: 18px;
+      font-size: 19px;
+      margin-bottom: 16px;
     }
 
     .feature-card h3 {
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 700;
       color: #fff;
       margin-bottom: 8px;
@@ -463,8 +553,8 @@
 
     .feature-card p {
       color: var(--text-muted);
-      font-size: 14px;
-      line-height: 1.5;
+      font-size: 13.8px;
+      line-height: 1.55;
     }
 
     /* Comparison Table */
@@ -476,8 +566,8 @@
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 16px;
-      overflow: hidden;
-      max-width: 960px;
+      overflow-x: auto;
+      max-width: 1020px;
       margin: 0 auto;
     }
 
@@ -488,20 +578,20 @@
     }
 
     .comp-table th, .comp-table td {
-      padding: 16px 20px;
+      padding: 15px 18px;
       border-bottom: 1px solid var(--border);
     }
 
     .comp-table th {
       background: #111620;
-      font-size: 13px;
+      font-size: 12.5px;
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
 
     .comp-table td {
-      font-size: 14px;
+      font-size: 13.8px;
     }
 
     .check-green { color: #10b981; font-weight: 700; }
@@ -510,7 +600,7 @@
     /* Footer */
     footer {
       border-top: 1px solid var(--border);
-      padding: 60px 0 40px;
+      padding: 56px 0 40px;
       background: #05070a;
       color: var(--text-dim);
       font-size: 13px;
@@ -527,6 +617,7 @@
     .footer-links {
       display: flex;
       gap: 20px;
+      flex-wrap: wrap;
     }
 
     .footer-links a {
@@ -541,6 +632,7 @@
 
     @media (max-width: 768px) {
       .hero h1 { font-size: 34px; }
+      .stats-strip { grid-template-columns: repeat(2, 1fr); }
       .mockup-body { grid-template-columns: 1fr; }
       .mockup-sidebar { display: none; }
     }
@@ -554,10 +646,11 @@
       <a href="#" class="brand">
         <img src="assets/logo.png" alt="Bapu Studio" class="brand-icon">
         <span>Bapu Studio</span>
-        <span class="brand-badge">v1.4.0 OSS</span>
+        <span class="brand-badge">v2.0.0 NATIVE RUST</span>
       </a>
 
       <div class="nav-links">
+        <a href="#engines" class="nav-link">33 DB Engines</a>
         <a href="#features" class="nav-link">Features</a>
         <a href="#compare" class="nav-link">Comparison</a>
         <a href="https://github.com/sponsors/joravar" target="_blank" class="nav-link" style="color: #f472b6;">💖 Sponsor</a>
@@ -573,129 +666,226 @@
   <section class="hero">
     <div class="container">
       <div class="pill-badge">
-        <span>✨ Honest Open-Source • AGPLv3 • Privacy-First • v1.4.0 Live</span>
+        <span>🦀 v2.0.0 Live • 100% Pure-Rust Native Desktop • Zero Electron / Zero JVM • AGPLv3</span>
       </div>
-      <h1>The Honest Developer Cockpit for APIs, Databases, and Secrets.</h1>
+      <h1>Postman-Class API Studio + 33-Engine Database IDE in One Native Rust Binary.</h1>
       <p>
-        Replace bloated, heavy tools. Bapu Studio unites your HTTP requests, multi-tab SQL scratchpads, PostgreSQL, MySQL, MongoDB, Redis, SQLite, SSH-tunneled connections, and local <code>.env</code> variables in one fast, lightweight, local-first client.
+        No Chromium, no Node.js, no Java, and zero forced cloud sync. Bapu Studio v2.0 unites REST/GraphQL/OAuth2/Runner/Mock testing, 33 SQL/OLAP/Cloud/NoSQL/ODBC engines (including pure-Rust SQL Server &amp; Oracle), interactive ER diagrams, OS-Keychain secrets, WebSocket/SSE streams, and a local Ollama/BYOK AI Copilot.
       </p>
 
       <div class="hero-actions">
-        <a href="https://github.com/joravar/bapu-studio/releases/tag/v1.4.0" class="btn-download-win">
+        <a href="https://github.com/joravar/bapu-studio/releases/download/v2.0.0/Bapu-Studio-Portable-x64.exe" class="btn-download-win">
           <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
-          <span>Windows (.exe / Portable)</span>
+          <span>Windows x64 (Portable .exe)</span>
         </a>
 
-        <a href="https://github.com/joravar/bapu-studio/releases/tag/v1.4.0" class="btn-download-mac">
+        <a href="https://github.com/joravar/bapu-studio/releases/download/v2.0.0/bapu-studio-macos-arm64.tar.gz" class="btn-download-alt">
           <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.84c.62-.75 1.04-1.8 0.92-2.84-.9.04-1.99.6-2.63 1.35-.57.65-1.07 1.72-.94 2.74 1.01.08 2.03-.5 2.65-1.25z"/></svg>
-          <span>macOS (.dmg Apple Silicon)</span>
+          <span>macOS (Apple Silicon)</span>
         </a>
 
-        <a href="https://github.com/joravar/bapu-studio/releases/tag/v1.4.0" class="btn-download-linux">
+        <a href="https://github.com/joravar/bapu-studio/releases/download/v2.0.0/bapu-studio-linux-x64.tar.gz" class="btn-download-alt">
           <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12.012 0C5.388 0 0 5.388 0 12.012c0 5.303 3.438 9.8 8.207 11.387.6.111.82-.26.82-.578 0-.286-.011-1.044-.017-2.05-3.34.726-4.045-1.61-4.045-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.09-.745.083-.73.083-.73 1.205.085 1.84 1.238 1.84 1.238 1.07 1.834 2.808 1.304 3.492.997.108-.775.419-1.305.762-1.605-2.666-.304-5.467-1.333-5.467-5.932 0-1.31.468-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.51 11.51 0 0112.012 6c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.234 1.911 1.234 3.221 0 4.61-2.805 5.625-5.477 5.922.43.372.814 1.104.814 2.224 0 1.606-.015 2.898-.015 3.293 0 .321.218.694.825.576C20.565 21.808 24 17.313 24 12.012 24 5.388 18.612 0 12.012 0z"/></svg>
-          <span>Linux (.AppImage / .deb)</span>
+          <span>Linux x64 (.tar.gz)</span>
         </a>
+      </div>
+
+      <div class="sub-release-links">
+        Also available:
+        <a href="https://github.com/joravar/bapu-studio/releases/download/v2.0.0/bapu-studio-windows-x64.zip">Windows .zip</a> •
+        <a href="https://github.com/joravar/bapu-studio/releases/download/v2.0.0/bapu-studio-macos-x64.tar.gz">macOS Intel (x64)</a> •
+        <a href="https://github.com/joravar/bapu-studio/releases/download/v2.0.0/SHA256SUMS.txt">SHA256SUMS.txt</a> •
+        <a href="https://github.com/joravar/bapu-studio/releases/tag/v2.0.0">All v2.0.0 Release Notes</a>
+      </div>
+
+      <div class="stats-strip">
+        <div class="stat-box">
+          <div class="stat-num" style="color: #34d399;">~44 MB</div>
+          <div class="stat-lbl">Single Native Rust Binary</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num" style="color: #60a5fa;">33</div>
+          <div class="stat-lbl">Built-In Database Engines</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num" style="color: #22d3ee;">0 KB</div>
+          <div class="stat-lbl">Cloud Telemetry / Tracking</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num" style="color: #c084fc;">100%</div>
+          <div class="stat-lbl">Clean-Room Open Source</div>
+        </div>
       </div>
 
       <!-- Live Mockup Showcase -->
       <div class="mockup-wrapper">
         <div class="mockup-header">
-          <div class="dot dot-red"></div>
-          <div class="dot dot-yellow"></div>
-          <div class="dot dot-green"></div>
-          <span style="font-size: 11px; color: var(--text-dim); margin-left: 8px; font-family: var(--font-mono);">Bapu Studio v1.4.0 — Advanced Database Studio</span>
+          <div class="dots">
+            <div class="dot dot-red"></div>
+            <div class="dot dot-yellow"></div>
+            <div class="dot dot-green"></div>
+            <span style="font-size: 11.5px; color: var(--text-muted); margin-left: 8px; font-family: var(--font-mono);">Bapu Studio v2.0.0 — Pure-Rust Native Cockpit (egui / eframe)</span>
+          </div>
+          <div style="display: flex; gap: 8px; font-family: var(--font-mono); font-size: 11px;">
+            <span style="color: #34d399; background: rgba(16, 185, 129, 0.12); padding: 3px 8px; border-radius: 5px; border: 1px solid rgba(16, 185, 129, 0.3);">● Prod Vault</span>
+            <span style="color: #60a5fa; background: rgba(59, 130, 246, 0.12); padding: 3px 8px; border-radius: 5px; border: 1px solid rgba(59, 130, 246, 0.3);">✨ AI Copilot</span>
+          </div>
         </div>
 
-        <!-- DBeaver-Style Multi-Tab Header -->
         <div class="mockup-tabs">
-          <div class="mockup-tab active">
-            <span>📑 Orders Analytics.sql</span>
-          </div>
-          <div class="mockup-tab">
-            <span>📑 User Migration.sql</span>
-          </div>
-          <div class="mockup-tab">
-            <span>🍃 Customer Queries.mongodb.js</span>
-          </div>
-          <div class="mockup-tab" style="color: #60a5fa; font-weight: 700;">
-            <span>+ New Tab</span>
-          </div>
+          <div class="mockup-tab active"><span>📑 Orders Analytics.sql</span></div>
+          <div class="mockup-tab"><span>📑 Oracle_23ai_Settlement.sql</span></div>
+          <div class="mockup-tab"><span>📑 Snowflake_Warehouse.sql</span></div>
+          <div class="mockup-tab"><span>🕸️ Schema ERD Diagram</span></div>
+          <div class="mockup-tab" style="color: #60a5fa; font-weight: 700;"><span>+ New Tab</span></div>
         </div>
 
         <div class="mockup-body">
           <div class="mockup-sidebar">
-            <div class="mockup-sidebar-item">🚀 APIs & Requests (12)</div>
-            <div class="mockup-sidebar-item active">🗄️ PostgreSQL (via SSH Tunnel)</div>
-            <div class="mockup-sidebar-item">🍃 MongoDB (Atlas Sample)</div>
-            <div class="mockup-sidebar-item">🧵 Redis (Session Cache)</div>
-            <div class="mockup-sidebar-item">📁 SQLite (Embedded DB)</div>
-            <div class="mockup-sidebar-item">🔐 Secrets Matrix (.env)</div>
-            <div class="mockup-sidebar-item">⚡ Stream Studio (WS/SSE)</div>
-            <div class="mockup-sidebar-item">📜 Postman & OpenAPI Scripts</div>
+            <div class="mockup-sidebar-item"><span>🌐 API Collections (Runner &amp; Mock)</span></div>
+            <div class="mockup-sidebar-item active"><span>🐘 PostgreSQL 16 (SSH Bastion)</span><span>●</span></div>
+            <div class="mockup-sidebar-item"><span>🗄️ SQL Server 2022 (Pure TDS)</span><span>●</span></div>
+            <div class="mockup-sidebar-item"><span>🔶 Oracle 23ai Free (Pure TNS)</span><span>●</span></div>
+            <div class="mockup-sidebar-item"><span>❄️ Snowflake Cloud Warehouse</span><span>●</span></div>
+            <div class="mockup-sidebar-item"><span>⚡ ClickHouse OLAP Cluster</span><span>●</span></div>
+            <div class="mockup-sidebar-item"><span>🍃 MongoDB + Redis + Cassandra</span></div>
+            <div class="mockup-sidebar-item"><span>🔐 OS Keychain Secrets Vault</span></div>
+            <div class="mockup-sidebar-item"><span>📡 WebSocket &amp; SSE Streams</span></div>
           </div>
 
           <div class="mockup-content">
-            <!-- Studio Toolbar -->
             <div class="mockup-toolbar">
-              <div style="display: flex; gap: 8px;">
-                <span class="mockup-btn mockup-btn-primary">▶ Run (F5)</span>
-                <span class="mockup-btn mockup-btn-accent">⚡ Run Selection (Ctrl+Enter)</span>
+              <div style="display: flex; gap: 7px; flex-wrap: wrap;">
+                <span class="mockup-btn mockup-btn-primary">▶ Run (Ctrl+Enter)</span>
+                <span class="mockup-btn mockup-btn-accent">📜 Run Script (Alt+X)</span>
+                <span class="mockup-btn">✨ Format SQL</span>
                 <span class="mockup-btn" style="color: #f59e0b; border-color: rgba(245, 158, 11, 0.3);">⚡ Explain Plan</span>
               </div>
-              <div style="display: flex; gap: 8px; align-items: center;">
+              <div style="display: flex; gap: 7px; align-items: center; flex-wrap: wrap;">
                 <span class="mockup-btn" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa;">📊 Data Grid</span>
-                <span class="mockup-btn" style="color: var(--text-muted);">📟 Console (28ms)</span>
-                <span style="font-size: 11px; color: #10b981; background: rgba(16, 185, 129, 0.1); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.2);">🔒 mTLS Active</span>
+                <span class="mockup-btn">🕸️ ERD</span>
+                <span class="mockup-btn">🔄 Schema &amp; PK Diff</span>
+                <span class="mockup-btn">🎲 FK Mock Data</span>
               </div>
             </div>
 
             <div class="mockup-query-bar">
               <span style="color: #10b981; font-weight: 700;">SELECT</span>
-              <span style="color: #60a5fa;">id, name, plan_tier, storage_mb, status</span>
+              <span style="color: #60a5fa;">o.id, u.email, o.user_id, o.amount_cents, o.status</span>
               <span style="color: #10b981; font-weight: 700;">FROM</span>
-              <span style="color: #fff;">workspaces</span>
+              <span style="color: #fff;">"orders" o</span>
+              <span style="color: #10b981; font-weight: 700;">JOIN</span>
+              <span style="color: #fff;">"users" u ON u.id = o.user_id</span>
               <span style="color: #10b981; font-weight: 700;">WHERE</span>
-              <span style="color: #f59e0b;">status = 'ACTIVE'</span>
-              <span style="color: #10b981; font-weight: 700;">ORDER BY</span>
-              <span style="color: #60a5fa;">storage_mb DESC</span>
+              <span style="color: #f59e0b;">o.status = :status</span>
               <span style="color: #10b981; font-weight: 700;">LIMIT</span>
-              <span style="color: #f59e0b;">5;</span>
+              <span style="color: #22d3ee;">50;</span>
             </div>
 
             <table class="mockup-results-table">
               <thead>
                 <tr>
-                  <th>id</th>
-                  <th>name</th>
-                  <th>plan_tier</th>
-                  <th>storage_mb</th>
+                  <th>id 🔑</th>
+                  <th>email</th>
+                  <th>user_id (FK)</th>
+                  <th>amount_cents</th>
                   <th>status</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td>ws_03</td>
-                  <td>Mobile API Backend</td>
-                  <td><span style="color: #10b981;">enterprise</span></td>
-                  <td>12,400 MB</td>
-                  <td><span style="color: #10b981;">ACTIVE</span></td>
+                  <td>1042</td>
+                  <td>ada@bapustudio.dev</td>
+                  <td><span style="color: #22d3ee;">1 ↗</span></td>
+                  <td>149,000</td>
+                  <td><span style="color: #10b981;">paid</span></td>
                 </tr>
                 <tr>
-                  <td>ws_01</td>
-                  <td>Acme Core Infrastructure</td>
-                  <td><span style="color: #10b981;">enterprise</span></td>
-                  <td>4,500 MB</td>
-                  <td><span style="color: #10b981;">ACTIVE</span></td>
+                  <td>1043</td>
+                  <td>grace@bapustudio.dev</td>
+                  <td><span style="color: #22d3ee;">2 ↗</span></td>
+                  <td>49,000</td>
+                  <td><span style="color: #10b981;">paid</span></td>
                 </tr>
                 <tr>
-                  <td>ws_02</td>
-                  <td>Stripe Sandbox Vault</td>
-                  <td><span style="color: #60a5fa;">pro</span></td>
-                  <td>850 MB</td>
-                  <td><span style="color: #10b981;">ACTIVE</span></td>
+                  <td>1044</td>
+                  <td>margaret@apollo.gov</td>
+                  <td><span style="color: #22d3ee;">4 ↗</span></td>
+                  <td>299,000</td>
+                  <td><span style="color: #f59e0b;">processing (staged edit)</span></td>
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 33 Supported Database Engines -->
+  <section class="engines-section" id="engines">
+    <div class="container">
+      <div class="section-title">
+        <h2>33 Built-In Database Engines — Zero JDBC / Zero OCI</h2>
+        <p>Connect out of the box with pure-Rust wire protocols, cloud warehouse REST APIs, and universal ODBC 3.8.</p>
+      </div>
+
+      <div class="engine-cat-grid">
+        <div class="engine-cat-card">
+          <h3>Relational &amp; Distributed SQL (13)</h3>
+          <div class="engine-pills">
+            <span class="engine-pill highlight">PostgreSQL</span>
+            <span class="engine-pill highlight">SQL Server (MSSQL)</span>
+            <span class="engine-pill highlight">Azure SQL</span>
+            <span class="engine-pill highlight">Oracle 19c/21c/23ai</span>
+            <span class="engine-pill">MySQL</span>
+            <span class="engine-pill">MariaDB</span>
+            <span class="engine-pill">SQLite</span>
+            <span class="engine-pill">CockroachDB</span>
+            <span class="engine-pill">YugabyteDB</span>
+            <span class="engine-pill">TimescaleDB</span>
+            <span class="engine-pill">TiDB</span>
+            <span class="engine-pill">Turso / libSQL</span>
+            <span class="engine-pill">Firebird</span>
+          </div>
+        </div>
+
+        <div class="engine-cat-card">
+          <h3>Cloud Warehouses &amp; OLAP (9)</h3>
+          <div class="engine-pills">
+            <span class="engine-pill highlight">ClickHouse</span>
+            <span class="engine-pill highlight">Snowflake</span>
+            <span class="engine-pill highlight">Google BigQuery</span>
+            <span class="engine-pill highlight">Databricks SQL</span>
+            <span class="engine-pill">Amazon Redshift</span>
+            <span class="engine-pill">Trino / Presto</span>
+            <span class="engine-pill">DuckDB</span>
+            <span class="engine-pill">QuestDB</span>
+            <span class="engine-pill">Teradata Vantage</span>
+          </div>
+        </div>
+
+        <div class="engine-cat-card">
+          <h3>NoSQL, Graph, Search &amp; TSDB (8)</h3>
+          <div class="engine-pills">
+            <span class="engine-pill highlight">MongoDB / DocumentDB</span>
+            <span class="engine-pill highlight">Redis / Valkey</span>
+            <span class="engine-pill highlight">Apache Cassandra</span>
+            <span class="engine-pill">ScyllaDB</span>
+            <span class="engine-pill">Elasticsearch / OpenSearch</span>
+            <span class="engine-pill">Neo4j (Cypher)</span>
+            <span class="engine-pill">InfluxDB</span>
+            <span class="engine-pill">Apache CouchDB</span>
+          </div>
+        </div>
+
+        <div class="engine-cat-card">
+          <h3>Enterprise RDBMS &amp; ODBC (3+)</h3>
+          <div class="engine-pills">
+            <span class="engine-pill highlight">IBM Db2</span>
+            <span class="engine-pill highlight">SAP HANA</span>
+            <span class="engine-pill">Generic ODBC 3.8</span>
+            <span class="engine-pill">Sybase / Vertica / Exasol</span>
           </div>
         </div>
       </div>
@@ -706,86 +896,81 @@
   <section class="features-section" id="features">
     <div class="container">
       <div class="section-title">
-        <h2>Next-Generation Developer Cockpit — Upgraded in v1.4.0</h2>
-        <p>Everything you need for full-stack API, real-time stream, and database engineering without the bloat.</p>
+        <h2>Complete Postman + DBeaver PRO Parity in Pure Rust</h2>
+        <p>Every workflow engineered cleanly from public specs — fast, offline-first, and free under AGPLv3.</p>
       </div>
 
       <div class="feature-grid">
-        <!-- 1. Multi-Tab SQL Scratchpads -->
         <div class="feature-card">
-          <div class="feature-icon" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa;">📑</div>
-          <h3>DBeaver-Style Multi-Tab Scratchpads</h3>
-          <p>Open, rename, and manage multiple concurrent query buffers per database connection. Double-click inline renaming and auto-saving persistence across app restarts.</p>
+          <div class="feature-icon" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">🦀</div>
+          <h3>Pure-Rust Native Speed</h3>
+          <p>Built on <code>egui</code> / <code>eframe</code> with custom vector icons and crisp SVG logos. Sub-second cold start and ~44 MB single-file footprint with zero Electron or JVM overhead.</p>
         </div>
 
-        <!-- 2. Execute Selection & EXPLAIN Plans -->
         <div class="feature-card">
-          <div class="feature-icon" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;">⚡</div>
-          <h3>Partial Execution & ⚡ Explain Plan</h3>
-          <p>Highlight any query segment to run selected code (Ctrl+Enter / F5). 1-click EXPLAIN query visualizer for PostgreSQL, MySQL, SQLite, and MongoDB executionStats.</p>
+          <div class="feature-icon" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa;">🕸️</div>
+          <h3>Interactive ERD &amp; Table Designer</h3>
+          <p>Auto-layout Entity-Relationship Diagrams with PK/FK Crow's-foot connectors, Mermaid &amp; SVG export, plus Visual Table Designer forward-engineering across SQL dialects.</p>
         </div>
 
-        <!-- 3. Dual Results View -->
         <div class="feature-card">
-          <div class="feature-icon" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">📟</div>
-          <h3>Dual Mode: Grid vs. Execution Console</h3>
-          <p>Switch seamlessly between an interactive data grid with CSV export and a detailed Execution Console displaying latency (ms), rows affected, and query execution plans.</p>
+          <div class="feature-icon" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;">🔄</div>
+          <h3>Schema Diff, PK Data Diff &amp; Mock Seeder</h3>
+          <p>Compare schemas across databases to generate <code>ALTER</code>/<code>CREATE</code> migration DDL, diff table rows by Primary Key, and generate FK-valid smart mock rows.</p>
         </div>
 
-        <!-- 4. Enterprise Root CA & mTLS -->
         <div class="feature-card">
-          <div class="feature-icon" style="background: rgba(239, 68, 68, 0.15); color: #f87171;">🔒</div>
-          <h3>Custom Root CA & Mutual TLS (mTLS)</h3>
-          <p>Connect securely to enterprise databases with custom Root CA certificates (ca.pem), client certificates (mTLS), and client private keys with configurable CA verification.</p>
+          <div class="feature-icon" style="background: rgba(6, 182, 212, 0.15); color: #22d3ee;">📊</div>
+          <h3>Transactional Grid, FK Jumps &amp; 8 Exports</h3>
+          <p>Stage edits/inserts/deletes inside real <code>BEGIN/COMMIT/ROLLBACK</code> transactions, jump bidirectionally across Foreign Keys, import CSV/JSON with column mapping, and export in 8 formats.</p>
         </div>
 
-        <!-- 5. API Client & Latency Timer -->
         <div class="feature-card">
-          <div class="feature-icon" style="background: rgba(6, 182, 212, 0.15); color: #22d3ee;">🚀</div>
-          <h3>REST, GraphQL & cURL Importer</h3>
-          <p>Multi-method HTTP/GraphQL engine with sub-millisecond latency timer, cURL importer, and one-click code generation in TypeScript, Python, Go, and Rust.</p>
+          <div class="feature-icon" style="background: rgba(236, 72, 153, 0.15); color: #f472b6;">🚀</div>
+          <h3>REST, GraphQL, Multipart &amp; Enterprise Auth</h3>
+          <p>All 7 HTTP methods, <code>:path</code> params, Multipart file uploads, GraphQL schema introspection, OAuth 2.0 live token exchange, AWS Signature v4, JWT HS256, and RFC-6265 Cookie Jar.</p>
         </div>
 
-        <!-- 6. Real-Time Stream Studio -->
         <div class="feature-card">
-          <div class="feature-icon" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">⚡</div>
-          <h3>WebSocket & Server-Sent Events</h3>
-          <p>Live stream listener and bidirectional WebSocket console with real-time frame telemetry, connection lifecycle tracking, and JSON payload inspection.</p>
+          <div class="feature-icon" style="background: rgba(139, 92, 246, 0.15); color: #a78bfa;">🧪</div>
+          <h3>Air-Gapped JS Sandbox &amp; Auto-Assertions</h3>
+          <p>Run <code>bapu.*</code> / <code>pm.*</code> pre-request and assertion scripts inside a pure-Rust <code>boa_engine</code> sandbox (zero network/FS access, 5s timeout) or generate assertions in 0ms.</p>
         </div>
 
-        <!-- 7. Postman Scripting Engine -->
         <div class="feature-card">
-          <div class="feature-icon" style="background: rgba(236, 72, 153, 0.15); color: #f472b6;">🧪</div>
-          <h3>Postman & OpenAPI 3.0 Engine</h3>
-          <p>Execute pre-request scripts and automated assertions with <code>pm.test</code>, <code>pm.environment.set</code>, and <code>bapu.expect</code>. 1-click Postman v2.1 and OpenAPI 3.0 import/export.</p>
+          <div class="feature-icon" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">🏃</div>
+          <h3>Collection Runner, Mock Server &amp; Codegen</h3>
+          <p>Run data-driven CSV/JSON test suites with <code>avg</code>/<code>p95</code> latency stats, spin up a local HTTP Mock Server from saved examples, and generate client code in 8 languages.</p>
         </div>
 
-        <!-- 8. Local-First Secrets Matrix -->
         <div class="feature-card">
-          <div class="feature-icon" style="background: rgba(34, 197, 94, 0.15); color: #4ade80;">🔐</div>
-          <h3>Scoped Secrets Matrix & Real SQLite</h3>
-          <p>Scoped environment variables with secret masking and instant <code>{{VARIABLE}}</code> URL interpolation. Drag-and-drop SQLite file inspection powered by a real sql.js engine — real schema, real queries, real writes.</p>
+          <div class="feature-icon" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa;">📁</div>
+          <h3>OpenAPI 3, HAR 1.2, Postman &amp; Git Sync</h3>
+          <p>Lossless import/export for OpenAPI 3.0/3.1, HAR 1.2, Postman v2.1, cURL, and Markdown API docs — plus 1-file-per-request Git directory sync for clean PR diffs.</p>
         </div>
 
-        <!-- 9. SSH Tunnel -->
         <div class="feature-card">
-          <div class="feature-icon" style="background: rgba(96, 165, 250, 0.15); color: #60a5fa;">🔑</div>
-          <h3>SSH Tunnel (Bastion Host)</h3>
-          <p>Reach Postgres, MySQL, MongoDB, or Redis instances that only live inside a private network — password or private-key authentication to the jump host, forwarded automatically.</p>
+          <div class="feature-icon" style="background: rgba(239, 68, 68, 0.15); color: #f87171;">🔐</div>
+          <h3>OS Keychain Vault, mTLS &amp; SSH Bastion</h3>
+          <p>Passwords, API keys, and SSH private keys live in Windows Credential Manager / macOS Keychain / Linux Secret Service — paired with custom Root CA mTLS and pure-Rust <code>russh</code> jump hosts.</p>
         </div>
 
-        <!-- 10. Redis Support -->
         <div class="feature-card">
-          <div class="feature-icon" style="background: rgba(220, 38, 38, 0.15); color: #f87171;">🧵</div>
-          <h3>Full Redis Driver</h3>
-          <p>Run raw Redis commands (<code>GET</code>, <code>HGETALL</code>, <code>SCAN</code>, ...) against a real connection, with a type-aware keyspace browser and the same SSH/TLS options as your SQL databases.</p>
+          <div class="feature-icon" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">📡</div>
+          <h3>Live WebSocket &amp; SSE Stream Studio</h3>
+          <p>Dedicated real-time streaming cockpit for bidirectional WebSocket messaging and Server-Sent Events timelines with millisecond frame timestamps.</p>
         </div>
 
-        <!-- 11. Git-Friendly Collection Storage -->
         <div class="feature-card">
-          <div class="feature-icon" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">📁</div>
-          <h3>Git-Friendly Collection Storage</h3>
-          <p>Link an API collection to a folder and it's mirrored as one plain JSON file per request — small, reviewable diffs instead of one opaque blob, so teams can code-review API changes like any other PR.</p>
+          <div class="feature-icon" style="background: rgba(6, 182, 212, 0.15); color: #22d3ee;">🤖</div>
+          <h3>Local Ollama &amp; BYOK AI Copilot</h3>
+          <p>Generate schema-aware SQL, JSON payloads, and assertion scripts locally via Ollama (100% air-gapped on your machine) or with your own OpenAI / Anthropic key.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;">🩺</div>
+          <h3>SQL Formatter, `:param` Binder &amp; Health</h3>
+          <p>Format complex SQL in one click, bind <code>:named</code> parameters interactively, run multi-statement scripts (<code>Alt+X</code>), and monitor active database sessions &amp; health.</p>
         </div>
       </div>
     </div>
@@ -795,104 +980,97 @@
   <section class="comparison-section" id="compare">
     <div class="container">
       <div class="section-title">
-        <h2>How Bapu Studio Compares</h2>
-        <p>Zero telemetry, zero cloud lock-in, and 100% focused on developer productivity.</p>
+        <h2>How Bapu Studio v2.0 Compares</h2>
+        <p>Zero telemetry, zero cloud lock-in, and native Rust speed.</p>
       </div>
 
       <div class="comparison-table-wrapper">
         <table class="comp-table">
           <thead>
             <tr>
-              <th>Feature</th>
-              <th style="color: #60a5fa; font-weight: 700;">⚡ Bapu Studio v1.4.0</th>
+              <th>Capability</th>
+              <th style="color: #34d399; font-weight: 700;">🦀 Bapu Studio v2.0</th>
               <th>Postman</th>
+              <th>DBeaver CE / PRO</th>
               <th>TablePlus</th>
-              <th>DBeaver</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td><strong>Unified APIs + Databases</strong></td>
-              <td class="check-green">✓ Combined Cockpit</td>
+              <td><strong>Runtime Architecture</strong></td>
+              <td class="check-green">✓ Pure Native Rust (~44 MB)</td>
+              <td class="cross-red">Electron (~400 MB+)</td>
+              <td class="cross-red">Java / JVM (~250 MB+)</td>
+              <td class="check-green">Native (~90 MB)</td>
+            </tr>
+            <tr>
+              <td><strong>Unified API Studio + Database IDE</strong></td>
+              <td class="check-green">✓ All-in-One Cockpit</td>
               <td class="cross-red">✗ API only</td>
               <td class="cross-red">✗ DB only</td>
               <td class="cross-red">✗ DB only</td>
             </tr>
             <tr>
-              <td><strong>Multi-Tab SQL Scratchpads</strong></td>
-              <td class="check-green">✓ Persistent Multi-Tab</td>
+              <td><strong>Pre-Bundled Database Engines</strong></td>
+              <td class="check-green">✓ 33 Engines (Zero JDBC / OCI)</td>
               <td class="cross-red">✗ None</td>
-              <td class="check-green">✓ Built-in</td>
-              <td class="check-green">✓ Built-in</td>
+              <td class="cross-red">Downloads JDBC; NoSQL in PRO</td>
+              <td class="check-green">~15 Built-in</td>
             </tr>
             <tr>
-              <td><strong>Dialect EXPLAIN Plan Visualizer</strong></td>
-              <td class="check-green">✓ PG, MySQL, SQLite, Mongo</td>
+              <td><strong>Interactive ERD + Schema &amp; Data Diff</strong></td>
+              <td class="check-green">✓ Free &amp; Built-In</td>
+              <td class="cross-red">N/A</td>
+              <td class="cross-red">Schema/Data Diff in PRO</td>
               <td class="cross-red">✗ None</td>
-              <td class="cross-red">⚠️ Basic</td>
+            </tr>
+            <tr>
+              <td><strong>Collection Runner + Local Mock Server</strong></td>
+              <td class="check-green">✓ Unlimited Local Runs</td>
+              <td class="cross-red">⚠️ Runner Quota Gated</td>
+              <td class="cross-red">N/A</td>
+              <td class="cross-red">N/A</td>
+            </tr>
+            <tr>
+              <td><strong>OS-Keychain Vault + mTLS + SSH Bastion</strong></td>
+              <td class="check-green">✓ Native Keychain + russh</td>
+              <td class="cross-red">⚠️ Cloud Vault</td>
+              <td class="check-green">✓ Built-in</td>
               <td class="check-green">✓ Built-in</td>
             </tr>
             <tr>
-              <td><strong>Custom Root CA & mTLS Support</strong></td>
-              <td class="check-green">✓ Built-in Certificate Drawer</td>
-              <td class="cross-red">⚠️ Partial</td>
-              <td class="cross-red">⚠️ Paid only</td>
-              <td class="check-green">✓ Built-in</td>
-            </tr>
-            <tr>
-              <td><strong>WebSocket & SSE Stream Studio</strong></td>
+              <td><strong>WebSocket &amp; SSE Stream Studio</strong></td>
               <td class="check-green">✓ Dedicated Studio</td>
-              <td class="cross-red">⚠️ Complex</td>
+              <td class="cross-red">⚠️ Separate</td>
               <td class="cross-red">✗ None</td>
               <td class="cross-red">✗ None</td>
-            </tr>
-            <tr>
-              <td><strong>Pre-Bundled Drivers</strong></td>
-              <td class="check-green">✓ PG, MySQL, Mongo, Redis, SQLite</td>
-              <td class="cross-red">✗ None</td>
-              <td class="check-green">✓ Built-in</td>
-              <td class="cross-red">✗ Prompts for JDBC</td>
-            </tr>
-            <tr>
-              <td><strong>SSH Tunnel (Bastion Host)</strong></td>
-              <td class="check-green">✓ Password or Private Key</td>
-              <td class="cross-red">✗ None</td>
-              <td class="check-green">✓ Built-in</td>
-              <td class="check-green">✓ Built-in</td>
             </tr>
             <tr>
               <td><strong>Git-Diffable Collection Storage</strong></td>
-              <td class="check-green">✓ One file per request</td>
-              <td class="cross-red">✗ Single-file export only</td>
+              <td class="check-green">✓ One JSON file per request</td>
+              <td class="cross-red">✗ Monolithic export</td>
               <td class="cross-red">N/A</td>
               <td class="cross-red">N/A</td>
             </tr>
             <tr>
-              <td><strong>100% Local-First (No Forced Cloud)</strong></td>
-              <td class="check-green">✓ Full Local Privacy</td>
-              <td class="cross-red">✗ Forced Cloud Sync</td>
-              <td class="check-green">✓ Local</td>
+              <td><strong>100% Offline-First &amp; Zero Telemetry</strong></td>
+              <td class="check-green">✓ 100% Local Privacy</td>
+              <td class="cross-red">✗ Cloud Account Push</td>
+              <td class="check-green">✓ Local (CE)</td>
               <td class="check-green">✓ Local</td>
             </tr>
             <tr>
-              <td><strong>Telemetry & Data Privacy</strong></td>
-              <td class="check-green"><strong>100% Zero Telemetry</strong></td>
-              <td class="cross-red">Cloud telemetry</td>
-              <td class="cross-red">Closed source</td>
-              <td class="check-green">Open source</td>
-            </tr>
-            <tr>
-              <td><strong>Open Source License</strong></td>
-              <td class="check-green">✓ AGPLv3 Open</td>
-              <td class="cross-red">✗ Closed Source</td>
-              <td class="cross-red">✗ Proprietary</td>
-              <td class="check-green">✓ Apache 2.0</td>
+              <td><strong>License</strong></td>
+              <td class="check-green">✓ AGPLv3 Open Source</td>
+              <td class="cross-red">Proprietary</td>
+              <td class="check-green">Apache 2.0 / Commercial</td>
+              <td class="cross-red">Proprietary</td>
             </tr>
           </tbody>
         </table>
       </div>
       <p style="max-width: 960px; margin: 16px auto 0; font-size: 12px; color: var(--text-dim); text-align: center; line-height: 1.6;">
-        Runtime footprint is based on each tool's known architecture (Electron vs. JVM vs. native), not a controlled benchmark. Check the <a href="https://github.com/joravar/bapu-studio/releases/tag/v1.4.0" target="_blank" style="color: var(--text-muted);">Releases page</a> for download sizes across macOS, Windows, and Linux.
+        See the <a href="https://github.com/joravar/bapu-studio/releases/tag/v2.0.0" target="_blank" style="color: var(--text-muted);">v2.0.0 GitHub Release</a> for platform binaries and SHA-256 checksums across Windows, macOS, and Linux.
       </p>
     </div>
   </section>
@@ -900,16 +1078,17 @@
   <!-- Footer -->
   <footer>
     <div class="container footer-inner">
-      <div style="max-width: 600px;">
-        <p><strong style="color: #fff;">Bapu Studio</strong> — The Honest Open-Source Developer Cockpit.</p>
+      <div style="max-width: 640px;">
+        <p><strong style="color: #fff;">Bapu Studio v2.0</strong> — Pure-Rust Native Open-Source Developer Cockpit.</p>
         <p style="margin-top: 6px; font-size: 11px; color: var(--text-dim); line-height: 1.5;">
-          Licensed under GNU AGPLv3. Postman®, TablePlus®, DBeaver®, Doppler®, PostgreSQL®, MySQL®, MongoDB®, Redis®, Docker®, and Electron® are trademarks™ or registered® trademarks of their respective holders. Their mention here is purely for descriptive comparison and does not imply endorsement or affiliation.
+          Licensed under GNU AGPLv3 (<code>AGPL-3.0-or-later</code>). Postman®, DBeaver®, TablePlus®, PostgreSQL®, Microsoft SQL Server®, Oracle®, MySQL®, Snowflake®, BigQuery®, Databricks®, ClickHouse®, MongoDB®, Redis®, Cassandra®, Neo4j®, Elasticsearch®, IBM Db2®, and SAP HANA® are trademarks™ or registered® trademarks of their respective holders, referenced solely for descriptive comparison without affiliation or endorsement.
         </p>
       </div>
 
       <div class="footer-links">
         <a href="https://github.com/joravar/bapu-studio" target="_blank">GitHub</a>
-        <a href="https://github.com/joravar/bapu-studio/releases/tag/v1.4.0" target="_blank">Releases (v1.4.0)</a>
+        <a href="https://github.com/joravar/bapu-studio/releases/tag/v2.0.0" target="_blank">Releases (v2.0.0)</a>
+        <a href="https://github.com/joravar/bapu-studio/blob/main/SECURITY.md" target="_blank">Security</a>
         <a href="https://github.com/sponsors/joravar" target="_blank">Sponsor</a>
         <a href="https://github.com/joravar/bapu-studio/blob/main/LICENSE" target="_blank">AGPLv3 License</a>
       </div>
@@ -918,4 +1097,3 @@
 
 </body>
 </html>
-
