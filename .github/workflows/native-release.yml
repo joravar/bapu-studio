@@ -116,7 +116,18 @@ jobs:
           } else {
             $makensis = $makensis.Source
           }
-          if (-not $makensis) { throw "makensis.exe not found on this runner" }
+          if (-not $makensis) {
+            Write-Host "NSIS not preinstalled on this runner; installing via Chocolatey..."
+            choco install nsis -y --no-progress | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "choco install nsis failed with exit code $LASTEXITCODE" }
+            $makensis = Get-Command makensis -ErrorAction SilentlyContinue
+            if ($makensis) {
+              $makensis = $makensis.Source
+            } else {
+              $makensis = Get-ChildItem -Path "C:\Program Files (x86)\NSIS" -Filter "makensis.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+            }
+          }
+          if (-not $makensis) { throw "makensis.exe not found even after installing NSIS via Chocolatey" }
 
           & $makensis "/DVERSION=$version" "/DOUTFILE=$setupPath" "/DSRCEXE=$exeAbs" "/DSRCICO=$icoPath" "../packaging/windows/installer.nsi"
           if ($LASTEXITCODE -ne 0) { throw "makensis failed with exit code $LASTEXITCODE" }
