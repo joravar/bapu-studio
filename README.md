@@ -42,11 +42,13 @@ Developers shouldn't have to burn **2–4 GB of RAM** running an Electron API cl
 
 Standalone native binaries are published on [GitHub Releases (`v2.0.0`)](https://github.com/joravar/bapu-studio/releases/tag/v2.0.0) alongside `SHA256SUMS.txt`:
 
-| Operating System | Package | Format | Notes |
+| Operating System | Package | Format | Status |
 | :--- | :--- | :--- | :--- |
-| **🪟 Windows (x64)** | [**Bapu-Studio-Portable-x64.exe**](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/Bapu-Studio-Portable-x64.exe) <br> [bapu-studio-windows-x64.zip](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/bapu-studio-windows-x64.zip) | Standalone `.exe` & `.zip` | Zero dependencies (pure-Rust MSSQL TDS & Oracle TNS built in) |
-| **🍏 macOS (Apple Silicon & Intel)** | [**bapu-studio-macos-arm64.tar.gz**](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/bapu-studio-macos-arm64.tar.gz) <br> [bapu-studio-macos-x64.tar.gz](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/bapu-studio-macos-x64.tar.gz) | `.tar.gz` | Native Apple Silicon (`M1`–`M4`) & Intel binaries |
-| **🐧 Linux (x64)** | [**bapu-studio-linux-x64.tar.gz**](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/bapu-studio-linux-x64.tar.gz) | `.tar.gz` | X11 / Wayland native OpenGL (`glow`) binary |
+| **🍏 macOS (Apple Silicon & Intel)** | [**Bapu-Studio-macos-arm64.dmg**](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/Bapu-Studio-macos-arm64.dmg) <br> [Bapu-Studio-macos-arm64.zip](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/Bapu-Studio-macos-arm64.zip) • [Intel x64 (.dmg)](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/Bapu-Studio-macos-x64.dmg) | `.dmg` & `.zip` (`Bapu Studio.app`) | ✅ **Signed & Notarized by Apple** |
+| **🪟 Windows (x64)** | [**Bapu-Studio-Portable-x64.exe**](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/Bapu-Studio-Portable-x64.exe) <br> [bapu-studio-windows-x64.zip](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/bapu-studio-windows-x64.zip) | Standalone `.exe` & `.zip` | ✅ Ready to run *(unsigned — see note below)* |
+| **🐧 Linux (x64)** | [**bapu-studio-linux-x64.tar.gz**](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/bapu-studio-linux-x64.tar.gz) | `.tar.gz` | ✅ Ready to run |
+
+> **Windows SmartScreen note:** macOS builds are signed and notarized by Apple; Windows builds are currently unsigned. Microsoft Defender SmartScreen will show an *"Unknown Publisher"* prompt on first launch — click **More info → Run anyway** to proceed.
 
 ---
 

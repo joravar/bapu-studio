@@ -19,23 +19,19 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             bin_name: bapu-studio.exe
-            archive: bapu-studio-windows-x64.zip
-            portable: Bapu-Studio-Portable-x64.exe
+            arch_slug: windows-x64
           - os: macos-latest
             target: aarch64-apple-darwin
             bin_name: bapu-studio
-            archive: bapu-studio-macos-arm64.tar.gz
-            portable: ""
+            arch_slug: macos-arm64
           - os: macos-latest
             target: x86_64-apple-darwin
             bin_name: bapu-studio
-            archive: bapu-studio-macos-x64.tar.gz
-            portable: ""
+            arch_slug: macos-x64
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             bin_name: bapu-studio
-            archive: bapu-studio-linux-x64.tar.gz
-            portable: ""
+            arch_slug: linux-x64
 
     runs-on: ${{ matrix.os }}
     defaults:
@@ -45,11 +41,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Linux GUI & ODBC dependencies
+      - name: Install Linux GUI dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config cmake libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev libgtk-3-dev libdbus-1-dev unixodbc-dev
+          sudo apt-get install -y pkg-config cmake libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev libgtk-3-dev libdbus-1-dev
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -66,19 +62,175 @@ jobs:
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }} -p bapu-app
 
-      - name: Package Windows release assets
+      - name: Package & sign Windows release assets
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: |
           New-Item -ItemType Directory -Force -Path "../dist-assets" | Out-Null
-          Copy-Item -Force "target/${{ matrix.target }}/release/${{ matrix.bin_name }}" "../dist-assets/${{ matrix.portable }}"
-          Compress-Archive -Path "target/${{ matrix.target }}/release/${{ matrix.bin_name }}" -DestinationPath "../dist-assets/${{ matrix.archive }}" -Force
+          $exePath = "../dist-assets/Bapu-Studio-Portable-x64.exe"
+          Copy-Item -Force "target/${{ matrix.target }}/release/${{ matrix.bin_name }}" $exePath
 
-      - name: Package Unix tar.gz
-        if: runner.os != 'Windows'
+          # Windows code signing: set WIN_CSC_LINK (base64-encoded .pfx) and WIN_CSC_KEY_PASSWORD
+          # as repo secrets once a code-signing certificate is available; until then this is a
+          # no-op and we ship the same unsigned build as before (SmartScreen warning expected).
+          if ($env:WIN_CSC_LINK -and $env:WIN_CSC_KEY_PASSWORD) {
+            Write-Host "Signing Bapu-Studio-Portable-x64.exe..."
+            $pfxPath = Join-Path $env:RUNNER_TEMP "bapu-signing.pfx"
+            [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WIN_CSC_LINK))
+            $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "signtool.exe" -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -match "\\x64\\" } | Select-Object -First 1 -ExpandProperty FullName
+            if ($signtool) {
+              & $signtool sign /f $pfxPath /p $env:WIN_CSC_KEY_PASSWORD /fd sha256 /tr http://timestamp.digicert.com /td sha256 $exePath
+              if ($LASTEXITCODE -ne 0) { throw "signtool failed with exit code $LASTEXITCODE" }
+            } else {
+              Write-Warning "signtool.exe not found on this runner; shipping unsigned build."
+            }
+            Remove-Item -Force $pfxPath -ErrorAction SilentlyContinue
+          } else {
+            Write-Host "WIN_CSC_LINK/WIN_CSC_KEY_PASSWORD not set; shipping unsigned build (SmartScreen warning expected)."
+          }
+
+          Compress-Archive -Path $exePath -DestinationPath "../dist-assets/bapu-studio-windows-x64.zip" -Force
+
+      - name: Package, Sign & Notarize macOS .app, .dmg & .zip
+        if: runner.os == 'macOS'
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          mkdir -p ../dist-assets
+          APP_DIR="$RUNNER_TEMP/Bapu Studio.app"
+          rm -rf "$APP_DIR"
+          mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
+
+          cp "target/${{ matrix.target }}/release/bapu-studio" "$APP_DIR/Contents/MacOS/bapu-studio"
+          chmod +x "$APP_DIR/Contents/MacOS/bapu-studio"
+
+          # Build crisp macOS AppIcon.icns from build/icon.png
+          ICONSET="$RUNNER_TEMP/AppIcon.iconset"
+          rm -rf "$ICONSET"
+          mkdir -p "$ICONSET"
+          SRC_ICON="../build/icon.png"
+          for sz in 16 32 128 256 512; do
+            sips -z $sz $sz "$SRC_ICON" --out "$ICONSET/icon_${sz}x${sz}.png" >/dev/null
+            sz2=$((sz * 2))
+            sips -z $sz2 $sz2 "$SRC_ICON" --out "$ICONSET/icon_${sz}x${sz}@2x.png" >/dev/null
+          done
+          iconutil -c icns "$ICONSET" -o "$APP_DIR/Contents/Resources/AppIcon.icns"
+
+          cat > "$APP_DIR/Contents/Info.plist" <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key>
+            <string>Bapu Studio</string>
+            <key>CFBundleDisplayName</key>
+            <string>Bapu Studio</string>
+            <key>CFBundleIdentifier</key>
+            <string>dev.bapustudio.app</string>
+            <key>CFBundleVersion</key>
+            <string>2.0.0</string>
+            <key>CFBundleShortVersionString</key>
+            <string>2.0.0</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleExecutable</key>
+            <string>bapu-studio</string>
+            <key>CFBundleIconFile</key>
+            <string>AppIcon</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+            <key>LSMinimumSystemVersion</key>
+            <string>11.0</string>
+          </dict>
+          </plist>
+          EOF
+
+          ZIP_PATH="../dist-assets/Bapu-Studio-${{ matrix.arch_slug }}.zip"
+          DMG_PATH="../dist-assets/Bapu-Studio-${{ matrix.arch_slug }}.dmg"
+
+          SIGN_IDENTITY=""
+          if [ -n "${CSC_LINK:-}" ] && [ -n "${CSC_KEY_PASSWORD:-}" ]; then
+            echo "Importing Apple Developer ID certificate..."
+            KEYCHAIN_PATH="$RUNNER_TEMP/bapu-signing.keychain-db"
+            KEYCHAIN_PASS="$(uuidgen)"
+            CLEAN_B64="${CSC_LINK#*base64,}"
+            printf '%s' "$CLEAN_B64" | tr -d ' \t\r\n' | base64 --decode > "$RUNNER_TEMP/cert.p12"
+
+            security create-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
+            security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+            security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
+            security import "$RUNNER_TEMP/cert.p12" -P "$CSC_KEY_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+            security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
+
+            SIGN_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep "Developer ID Application" | head -n 1 | awk -F '"' '{print $2}' || true)"
+            if [ -n "$SIGN_IDENTITY" ]; then
+              echo "Signing Bapu Studio.app with identity: $SIGN_IDENTITY"
+              codesign --force --deep --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_DIR"
+              codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+            else
+              echo "::warning::No 'Developer ID Application' identity found in CSC_LINK; proceeding unsigned."
+            fi
+          fi
+
+          ditto -c -k --keepParent "$APP_DIR" "$ZIP_PATH"
+
+          if [ -n "$SIGN_IDENTITY" ] && [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
+            echo "Submitting Bapu Studio.app to Apple Notarization service..."
+            if xcrun notarytool submit "$ZIP_PATH" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --wait; then
+              xcrun stapler staple "$APP_DIR"
+              rm -f "$ZIP_PATH"
+              ditto -c -k --keepParent "$APP_DIR" "$ZIP_PATH"
+            else
+              echo "::warning::notarytool app notarization returned non-zero; packaging signed bundle."
+            fi
+          fi
+
+          # Create DMG with Applications symlink for drag-and-drop install
+          DMG_STAGE="$RUNNER_TEMP/dmg-stage"
+          rm -rf "$DMG_STAGE"
+          mkdir -p "$DMG_STAGE"
+          cp -R "$APP_DIR" "$DMG_STAGE/Bapu Studio.app"
+          ln -s /Applications "$DMG_STAGE/Applications"
+          hdiutil create -volname "Bapu Studio" -srcfolder "$DMG_STAGE" -ov -format UDZO "$DMG_PATH"
+
+          if [ -n "$SIGN_IDENTITY" ]; then
+            codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG_PATH"
+            if [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
+              if xcrun notarytool submit "$DMG_PATH" \
+                --apple-id "$APPLE_ID" \
+                --team-id "$APPLE_TEAM_ID" \
+                --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+                --wait; then
+                xcrun stapler staple "$DMG_PATH"
+              fi
+            fi
+          fi
+
+      - name: Clean up temporary macOS signing keychain
+        if: always() && runner.os == 'macOS'
+        run: |
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security delete-keychain "$RUNNER_TEMP/bapu-signing.keychain-db" 2>/dev/null || true
+
+      - name: Package Linux tar.gz
+        if: runner.os == 'Linux'
         run: |
           mkdir -p ../dist-assets
-          tar -czf "../dist-assets/${{ matrix.archive }}" -C "target/${{ matrix.target }}/release" "${{ matrix.bin_name }}"
+          tar -czf "../dist-assets/bapu-studio-linux-x64.tar.gz" -C "target/${{ matrix.target }}/release" "${{ matrix.bin_name }}"
 
       - name: Upload Release Artifact
         uses: actions/upload-artifact@v4

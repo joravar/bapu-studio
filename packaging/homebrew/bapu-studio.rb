@@ -20,9 +20,9 @@
 # If an Intel build is added later, this can be split into arm/intel sha256 + arch variants.
 cask "bapu-studio" do
   version "2.0.0"
-  sha256 "REPLACE_WITH_SHA256_OF_bapu-studio-macos-arm64.tar.gz"
+  sha256 "REPLACE_WITH_SHA256_OF_Bapu-Studio-macos-arm64.dmg"
 
-  url "https://github.com/joravar/bapu-studio/releases/download/v#{version}/bapu-studio-macos-arm64.tar.gz"
+  url "https://github.com/joravar/bapu-studio/releases/download/v#{version}/Bapu-Studio-macos-arm64.dmg"
   name "Bapu Studio"
   desc "Pure-Rust native developer cockpit for APIs, 33 database engines, streams, and secrets"
   homepage "https://joravar.github.io/bapu-studio/"
@@ -30,7 +30,7 @@ cask "bapu-studio" do
   depends_on arch: :arm64
   depends_on macos: ">= :big_sur"
 
-  binary "bapu-studio"
+  app "Bapu Studio.app"
 
   zap trash: [
     "~/Library/Application Support/Bapu Studio",

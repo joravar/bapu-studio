@@ -22,7 +22,7 @@ When filing a bug report, please include:
 * **App Version:** (e.g., v1.0.0)
 * **Steps to Reproduce:** Clear step-by-step instructions.
 * **Expected vs. Actual Behavior:** What did you expect to happen vs. what actually happened?
-* **Console Logs:** Any error output from Developer Tools (`Ctrl+Shift+I` or `Cmd+Option+I`).
+* **Logs:** Any error output from the terminal (run the binary with `RUST_LOG=debug` for verbose logs).
 
 > 🛡️ **Security Vulnerabilities:** Please do **NOT** open public issues for security vulnerabilities. Email details directly to **support@bapustudio.dev**.
 
@@ -37,35 +37,32 @@ We welcome feature proposals! When opening a feature request:
 ## 💻 Development Setup
 
 ### Prerequisites
-* **Node.js** v18+ 
-* **npm** v9+
+* **Rust** (stable toolchain, via [rustup](https://rustup.rs))
 * **Git**
+* On Linux, the GUI toolkit's dev headers: `pkg-config cmake libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev libgtk-3-dev libdbus-1-dev` (see `.github/workflows/native-ci.yml` for the exact `apt-get` line). Windows and macOS need nothing extra beyond the Rust toolchain.
 
 ### Local Environment Setup
 
 1. **Fork and Clone the Repository:**
    ```bash
    git clone https://github.com/YOUR-USERNAME/bapu-studio.git
-   cd bapu-studio
+   cd bapu-studio/native
    ```
 
-2. **Install Dependencies:**
+2. **Run the Desktop Cockpit:**
    ```bash
-   npm install
+   cargo run -p bapu-app
    ```
 
-3. **Run Development Cockpit:**
+3. **Run the Test Suite:**
    ```bash
-   # Run Vite frontend in browser mode
-   npm run dev
-
-   # Run full desktop application in Electron
-   npm run desktop
+   cargo test --workspace
    ```
 
-4. **Run Test Suite:**
+4. **Format & Lint Before Committing:**
    ```bash
-   npm run test
+   cargo fmt --all
+   cargo clippy --workspace -- -D warnings
    ```
 
 ---
@@ -80,10 +77,10 @@ We welcome feature proposals! When opening a feature request:
    ```
 
 2. **Code Guidelines & Architecture Principles:**
-   * **TypeScript:** Strictly typed code. Avoid `any` where possible.
-   * **Styling:** Use tailored HSL dark theme Vanilla CSS tokens in `src/index.css`. Avoid adding heavy third-party CSS utility frameworks.
+   * **Rust:** Run `cargo fmt` and `cargo clippy --workspace` clean before opening a PR. Prefer propagating errors with `anyhow`/`thiserror` over `unwrap()`/`expect()` outside of tests.
+   * **UI:** The `egui`/`eframe` immediate-mode interface lives in `native/crates/bapu-app/src/ui/`; shared logic (HTTP, DB drivers, secrets, scripting) lives in `native/crates/bapu-core/`.
    * **Zero Telemetry:** Never add network tracking, analytics, or phone-home telemetry calls.
-   * **Pure JS Database Drivers:** Database connectors must run locally without heavy external background daemons.
+   * **Pure-Rust Drivers:** Database connectors must be pure-Rust crates that run locally, without bundling Node, the JVM, or other heavy external runtimes.
 
 3. **Commit Message Format:**
    We follow conventional commit formatting:

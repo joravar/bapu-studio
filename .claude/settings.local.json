@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p /c/Users/sarva/AppData/Local/Temp/claude/c--Users-sarva-Google-Drive-antigravity-opensource/44fc706b-4708-4ed8-93a7-d65213fcff6a/scratchpad/pw)",
+      "Read(//c/Users/sarva/AppData/Local/Temp/claude/c--Users-sarva-Google-Drive-antigravity-opensource/44fc706b-4708-4ed8-93a7-d65213fcff6a/scratchpad/**)",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(npx playwright *)",
+      "Bash(node verify.js)",
+      "Bash(lsof -ti:3000 -sTCP:LISTEN)",
+      "Bash(xargs -r kill)",
+      "Bash(npx tsc *)",
+      "WebSearch",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 5 https://echo.websocket.events)",
+      "Bash(node verify_stream.js)",
+      "Bash(npm test *)",
+      "Bash(npm run *)"
+    ]
+  }
+}

@@ -41,7 +41,6 @@ tiberius = { version = "0.13", default-features = false, features = ["tds80", "r
 tokio-util = { version = "0.7", features = ["compat"] }
 oracle-rs = "0.1.7"
 cdrs-tokio = { version = "10.0", features = ["rust-tls"] }
-odbc-api = { version = "30", default-features = false, features = ["odbc_version_3_80"] }
 
 # Pure-Rust embeddable JS engine for the pre-request/test script sandbox (no filesystem, no
 # network, no DOM unless we explicitly bind a function into its global scope).
@@ -53,3 +52,12 @@ futures-util = "0.3"
 
 # Pure-Rust async SSH client for bastion/jump-host database tunneling.
 russh = "0.49"
+
+[target.'cfg(windows)'.dependencies]
+# Windows ships `odbc32.dll` in System32 on every OS install.
+odbc-api = { version = "30", default-features = false, features = ["odbc_version_3_80"] }
+
+[target.'cfg(not(windows))'.dependencies]
+# On macOS & Linux we dynamically load `libodbc` / `libiodbc` at runtime via `dlopen` so the
+# app binary has zero compile-time `-lodbc` link dependency and passes Apple Notarization cleanly.
+libloading = "0.8"
