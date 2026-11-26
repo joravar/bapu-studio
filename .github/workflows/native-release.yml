@@ -95,6 +95,45 @@ jobs:
 
           Compress-Archive -Path $exePath -DestinationPath "../dist-assets/bapu-studio-windows-x64.zip" -Force
 
+      - name: Build Windows installer (Setup.exe, via NSIS)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          $icoPath = Join-Path $env:RUNNER_TEMP "bapu-icon.ico"
+          magick "../build/icon.png" -define icon:auto-resize="16,32,48,256" $icoPath
+          if ($LASTEXITCODE -ne 0) { throw "ImageMagick failed to build icon.ico" }
+
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          $setupPath = (Resolve-Path "..").Path + "\dist-assets\Bapu-Studio-Setup-x64.exe"
+          $exeAbs = (Resolve-Path "../dist-assets/Bapu-Studio-Portable-x64.exe").Path
+
+          $makensis = Get-Command makensis -ErrorAction SilentlyContinue
+          if (-not $makensis) {
+            $makensis = Get-ChildItem -Path "C:\Program Files (x86)\NSIS" -Filter "makensis.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          } else {
+            $makensis = $makensis.Source
+          }
+          if (-not $makensis) { throw "makensis.exe not found on this runner" }
+
+          & $makensis "/DVERSION=$version" "/DOUTFILE=$setupPath" "/DSRCEXE=$exeAbs" "/DSRCICO=$icoPath" "../packaging/windows/installer.nsi"
+          if ($LASTEXITCODE -ne 0) { throw "makensis failed with exit code $LASTEXITCODE" }
+
+          if ($env:WIN_CSC_LINK -and $env:WIN_CSC_KEY_PASSWORD) {
+            Write-Host "Signing Bapu-Studio-Setup-x64.exe..."
+            $pfxPath = Join-Path $env:RUNNER_TEMP "bapu-signing-installer.pfx"
+            [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WIN_CSC_LINK))
+            $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "signtool.exe" -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -match "\\x64\\" } | Select-Object -First 1 -ExpandProperty FullName
+            if ($signtool) {
+              & $signtool sign /f $pfxPath /p $env:WIN_CSC_KEY_PASSWORD /fd sha256 /tr http://timestamp.digicert.com /td sha256 $setupPath
+              if ($LASTEXITCODE -ne 0) { throw "signtool failed with exit code $LASTEXITCODE" }
+            }
+            Remove-Item -Force $pfxPath -ErrorAction SilentlyContinue
+          }
+
       - name: Package, Sign & Notarize macOS .app, .dmg & .zip
         if: runner.os == 'macOS'
         env:
@@ -243,6 +282,8 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -254,8 +295,21 @@ jobs:
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      - name: Resolve hand-written release notes (if any)
+        id: notes
+        run: |
+          f="release-notes/${{ github.ref_name }}.md"
+          if [ -f "$f" ]; then
+            echo "Using $f"
+            echo "path=$f" >> "$GITHUB_OUTPUT"
+          else
+            echo "No release-notes/${{ github.ref_name }}.md; falling back to the auto-generated changelog only."
+            echo "path=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*
           generate_release_notes: true
+          body_path: ${{ steps.notes.outputs.path }}
