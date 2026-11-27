@@ -4,8 +4,8 @@
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Native Rust CI](https://github.com/joravar/bapu-studio/actions/workflows/native-ci.yml/badge.svg)](https://github.com/joravar/bapu-studio/actions/workflows/native-ci.yml)
-[![Release: v2.0.0](https://img.shields.io/badge/Release-v2.0.0-emerald.svg)](https://github.com/joravar/bapu-studio/releases/tag/v2.0.0)
-[![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational.svg)](https://github.com/joravar/bapu-studio/releases/tag/v2.0.0)
+[![Release: v2.0.2](https://img.shields.io/badge/Release-v2.0.2-emerald.svg)](https://github.com/joravar/bapu-studio/releases/tag/v2.0.2)
+[![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational.svg)](https://github.com/joravar/bapu-studio/releases/tag/v2.0.2)
 [![Website](https://img.shields.io/badge/Website-Live-brightgreen.svg)](https://joravar.github.io/bapu-studio/)
 [![Sponsor](https://img.shields.io/badge/GitHub-Sponsor-pink.svg)](https://github.com/sponsors/joravar)
 
@@ -40,15 +40,22 @@ Developers shouldn't have to burn **2–4 GB of RAM** running an Electron API cl
 
 ## 📦 Downloads
 
-Standalone native binaries are published on [GitHub Releases (`v2.0.0`)](https://github.com/joravar/bapu-studio/releases/tag/v2.0.0) alongside `SHA256SUMS.txt`:
+Standalone native binaries are published on [GitHub Releases (`v2.0.2`)](https://github.com/joravar/bapu-studio/releases/tag/v2.0.2) alongside `SHA256SUMS.txt`:
 
 | Operating System | Package | Format | Status |
 | :--- | :--- | :--- | :--- |
-| **🍏 macOS (Apple Silicon & Intel)** | [**Bapu-Studio-macos-arm64.dmg**](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/Bapu-Studio-macos-arm64.dmg) <br> [Bapu-Studio-macos-arm64.zip](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/Bapu-Studio-macos-arm64.zip) • [Intel x64 (.dmg)](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/Bapu-Studio-macos-x64.dmg) | `.dmg` & `.zip` (`Bapu Studio.app`) | ✅ **Signed & Notarized by Apple** |
-| **🪟 Windows (x64)** | [**Bapu-Studio-Setup-x64.exe**](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/Bapu-Studio-Setup-x64.exe) (installer) <br> [Bapu-Studio-Portable-x64.exe](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/Bapu-Studio-Portable-x64.exe) (no install) <br> [bapu-studio-windows-x64.zip](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/bapu-studio-windows-x64.zip) | `.exe` installer, portable `.exe`, `.zip` | ✅ Ready to run *(unsigned — see note below)* |
-| **🐧 Linux (x64)** | [**bapu-studio-linux-x64.tar.gz**](https://github.com/joravar/bapu-studio/releases/download/v2.0.0/bapu-studio-linux-x64.tar.gz) | `.tar.gz` | ✅ Ready to run |
+| **🍏 macOS (Apple Silicon & Intel)** | [**Bapu-Studio-macos-arm64.dmg**](https://github.com/joravar/bapu-studio/releases/download/v2.0.2/Bapu-Studio-macos-arm64.dmg) <br> [Bapu-Studio-macos-arm64.zip](https://github.com/joravar/bapu-studio/releases/download/v2.0.2/Bapu-Studio-macos-arm64.zip) • [Intel x64 (.dmg)](https://github.com/joravar/bapu-studio/releases/download/v2.0.2/Bapu-Studio-macos-x64.dmg) | `.dmg` & `.zip` (`Bapu Studio.app`) | ✅ **Signed & Notarized by Apple** |
+| **🪟 Windows (x64)** | [**Bapu-Studio-Setup-x64.exe**](https://github.com/joravar/bapu-studio/releases/download/v2.0.2/Bapu-Studio-Setup-x64.exe) (installer) <br> [Bapu-Studio-Portable-x64.exe](https://github.com/joravar/bapu-studio/releases/download/v2.0.2/Bapu-Studio-Portable-x64.exe) (no install) <br> [bapu-studio-windows-x64.zip](https://github.com/joravar/bapu-studio/releases/download/v2.0.2/bapu-studio-windows-x64.zip) | `.exe` installer, portable `.exe`, `.zip` | ✅ Ready to run *(unsigned — see note below)* |
+| **🐧 Linux (x64)** | [**bapu-studio-linux-x64.tar.gz**](https://github.com/joravar/bapu-studio/releases/download/v2.0.2/bapu-studio-linux-x64.tar.gz) | `.tar.gz` | ✅ Ready to run |
 
 > **Windows SmartScreen note:** macOS builds are signed and notarized by Apple; Windows builds are currently unsigned. Microsoft Defender SmartScreen will show an *"Unknown Publisher"* prompt on first launch — click **More info → Run anyway** to proceed.
+
+---
+
+### Patch notes since v2.0.0
+
+* **v2.0.2** — Postman-style multi-tab request editor (open several requests at once without losing unsaved edits); fixed the collection "+" button, which was saving whatever request was currently active into the collection instead of creating a new blank one.
+* **v2.0.1** — Added a Windows `Setup.exe` installer (NSIS-built, alongside the existing portable `.exe`); real hand-written release notes instead of a bare changelog link; fixed a macOS release build failure (ODBC was linking `libodbc` at compile time with no install step for it) and a Windows release build failure (NSIS isn't preinstalled on the runner image); added a direct "Import Bapu Studio JSON" option for collections already in the app's own format.
 
 ---
 
