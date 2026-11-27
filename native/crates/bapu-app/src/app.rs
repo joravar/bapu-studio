@@ -129,6 +129,12 @@ pub struct BapuApp {
     pub new_collection_name: String,
     pub new_collection_open: bool,
     pub active_request: ApiRequest,
+    /// Requests currently open as tabs in the API Studio editor (Postman-style multi-
+    /// request tabs). `active_request` always mirrors `open_tabs[active_tab]`; it's kept
+    /// as its own field so the rest of the editor UI can keep reading/writing it exactly
+    /// as before, oblivious to how many other tabs are open. Not persisted across restarts.
+    pub open_tabs: Vec<ApiRequest>,
+    pub active_tab: usize,
     pub api_req_subtab: ApiReqSubTab,
     pub api_resp_subtab: ApiRespSubTab,
     pub resp_filter: String,
@@ -431,7 +437,9 @@ impl BapuApp {
             collapsed_collections: HashSet::new(),
             new_collection_name: String::new(),
             new_collection_open: false,
-            active_request,
+            active_request: active_request.clone(),
+            open_tabs: vec![active_request],
+            active_tab: 0,
             api_req_subtab: ApiReqSubTab::Params,
             api_resp_subtab: ApiRespSubTab::Preview,
             resp_filter: String::new(),
@@ -596,6 +604,101 @@ impl BapuApp {
             .unwrap_or("")
     }
 
+    // ---- Multi-tab request editor (Postman-style) ----------------------------------------
+    //
+    // `active_request` is kept as the single live-edited copy so the rest of the editor UI
+    // (dozens of call sites) can keep reading/writing `self.active_request.*` exactly as
+    // before. These helpers are the only places that move data between it and `open_tabs`.
+
+    /// Write the currently active tab's live edits back into its slot in `open_tabs`.
+    fn sync_active_into_tabs(&mut self) {
+        if let Some(slot) = self.open_tabs.get_mut(self.active_tab) {
+            *slot = self.active_request.clone();
+        }
+    }
+
+    /// Open `req` in a tab: focuses an already-open tab for the same request ID if one
+    /// exists (preserving that tab's possibly-unsaved edits instead of clobbering them with
+    /// `req`), otherwise opens it in a new tab.
+    pub fn open_request_tab(&mut self, req: ApiRequest) {
+        self.sync_active_into_tabs();
+        if let Some(idx) = self.open_tabs.iter().position(|t| t.id == req.id) {
+            self.active_tab = idx;
+            self.active_request = self.open_tabs[idx].clone();
+        } else {
+            self.open_tabs.push(req.clone());
+            self.active_tab = self.open_tabs.len() - 1;
+            self.active_request = req;
+        }
+        self.last_response = None;
+    }
+
+    /// Open a brand-new blank request in its own tab.
+    pub fn open_blank_tab(&mut self) {
+        self.open_request_tab(blank_request());
+    }
+
+    /// Switch focus to an already-open tab by index (no-op for an out-of-range or already-
+    /// active index).
+    pub fn switch_to_tab(&mut self, idx: usize) {
+        if idx >= self.open_tabs.len() || idx == self.active_tab {
+            return;
+        }
+        self.sync_active_into_tabs();
+        self.active_tab = idx;
+        self.active_request = self.open_tabs[idx].clone();
+        self.last_response = None;
+    }
+
+    /// Close the tab at `idx`. Always leaves at least one (blank, if needed) tab open.
+    pub fn close_tab(&mut self, idx: usize) {
+        if idx >= self.open_tabs.len() {
+            return;
+        }
+        let closing_active = idx == self.active_tab;
+        if !closing_active {
+            // Persist the active tab's current edits before the vector shifts under it.
+            self.sync_active_into_tabs();
+        }
+        self.open_tabs.remove(idx);
+
+        if self.open_tabs.is_empty() {
+            self.open_tabs.push(blank_request());
+            self.active_tab = 0;
+            self.active_request = self.open_tabs[0].clone();
+            self.last_response = None;
+            return;
+        }
+
+        if closing_active {
+            self.active_tab = self.active_tab.min(self.open_tabs.len() - 1);
+            self.active_request = self.open_tabs[self.active_tab].clone();
+            self.last_response = None;
+        } else if idx < self.active_tab {
+            self.active_tab -= 1;
+        }
+    }
+
+    /// Create a brand-new blank request directly inside collection `col_idx` and open it for
+    /// editing. This is what the "+" button on a collection in the sidebar does — distinct
+    /// from `save_active_request_to_collection`, which files whatever is currently open into
+    /// a collection rather than starting a new one.
+    pub fn new_request_in_collection(&mut self, col_idx: usize) {
+        let mut req = blank_request();
+        if let Some(col) = self.collections.get_mut(col_idx) {
+            req.collection_id = Some(col.id.clone());
+            col.requests.push(req.clone());
+            if let Some(folder) = &col.folder_path {
+                let _ = bapu_core::collection_sync::write_collection_folder(
+                    std::path::Path::new(folder),
+                    col,
+                );
+            }
+        }
+        self.open_request_tab(req);
+        self.persist();
+    }
+
     pub fn save_active_request_to_collection(&mut self, col_idx: usize) {
         if let Some(col) = self.collections.get_mut(col_idx) {
             let mut saved = self.active_request.clone();
@@ -631,18 +734,10 @@ impl BapuApp {
             }
         }
         if let Some(id) = deleted_id {
-            if self.active_request.id == id {
-                self.active_request = self
-                    .collections
-                    .get(col_idx)
-                    .and_then(|c| c.requests.first().cloned())
-                    .or_else(|| {
-                        self.collections
-                            .iter()
-                            .find_map(|c| c.requests.first().cloned())
-                    })
-                    .unwrap_or_else(blank_request);
-                self.last_response = None;
+            // If the deleted request was open in a tab, close that tab too -- `close_tab`
+            // already takes care of falling back to an adjacent tab (or a fresh blank one).
+            if let Some(tab_idx) = self.open_tabs.iter().position(|t| t.id == id) {
+                self.close_tab(tab_idx);
             }
             self.persist();
         }
@@ -654,16 +749,23 @@ impl BapuApp {
         }
         let removed = self.collections.remove(col_idx);
         self.collapsed_collections.remove(&removed.id);
-        if self.active_request.collection_id.as_deref() == Some(removed.id.as_str())
-            || removed.requests.iter().any(|r| r.id == self.active_request.id)
-        {
-            self.active_request = self
-                .collections
-                .iter()
-                .find_map(|c| c.requests.first().cloned())
-                .unwrap_or_else(blank_request);
-            self.last_response = None;
+
+        let removed_ids: HashSet<String> =
+            removed.requests.iter().map(|r| r.id.clone()).collect();
+        let mut stale_tabs: Vec<usize> = self
+            .open_tabs
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| removed_ids.contains(&t.id))
+            .map(|(i, _)| i)
+            .collect();
+        // Close in descending index order so each removal doesn't shift the indices of the
+        // ones still queued up.
+        stale_tabs.sort_unstable_by(|a, b| b.cmp(a));
+        for idx in stale_tabs {
+            self.close_tab(idx);
         }
+
         if self.runner_col_idx >= self.collections.len() {
             self.runner_col_idx = self.collections.len().saturating_sub(1);
         }

@@ -328,8 +328,7 @@ fn render_api_sidebar(app: &mut BapuApp, ui: &mut egui::Ui, pal: &theme::Palette
                 .on_hover_text("New blank request")
                 .clicked()
             {
-                app.active_request = blank_request();
-                app.last_response = None;
+                app.open_blank_tab();
             }
         });
     });
@@ -420,6 +419,7 @@ fn render_api_sidebar(app: &mut BapuApp, ui: &mut egui::Ui, pal: &theme::Palette
 
     let mut select_req = None;
     let mut add_to_col = None;
+    let mut new_req_in_col: Option<usize> = None;
     let mut link_col = None;
     let mut delete_col: Option<usize> = None;
     let mut delete_req: Option<(usize, usize)> = None;
@@ -477,10 +477,10 @@ fn render_api_sidebar(app: &mut BapuApp, ui: &mut egui::Ui, pal: &theme::Palette
                 }
                 if ui
                     .small_button("+")
-                    .on_hover_text("Save active request into this collection")
+                    .on_hover_text("New blank request in this collection")
                     .clicked()
                 {
-                    add_to_col = Some(ci);
+                    new_req_in_col = Some(ci);
                 }
                 if ui
                     .small_button("Sync")
@@ -594,11 +594,13 @@ fn render_api_sidebar(app: &mut BapuApp, ui: &mut egui::Ui, pal: &theme::Palette
         }
     }
     if let Some(req) = select_req {
-        app.active_request = req;
-        app.last_response = None;
+        app.open_request_tab(req);
     }
     if let Some(ci) = add_to_col {
         app.save_active_request_to_collection(ci);
+    }
+    if let Some(ci) = new_req_in_col {
+        app.new_request_in_collection(ci);
     }
     if let Some((ci, ri)) = duplicate_req {
         if let Some(col) = app.collections.get_mut(ci) {
@@ -1265,7 +1267,7 @@ pub fn render_quick_find(app: &mut BapuApp, ctx: &egui::Context) {
                     }
                 }
                 if let Some(r) = picked_req {
-                    app.active_request = r;
+                    app.open_request_tab(r);
                     app.tab = Tab::Api;
                     app.quick_find_open = false;
                 }

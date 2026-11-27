@@ -1,7 +1,8 @@
 use crate::app::{ApiReqSubTab, ApiRespSubTab, BapuApp};
 use crate::ui::widgets::{
-    badge_pill, card_frame, compact_card_frame, emerald_button, method_color, openapi_logo,
-    paint_icon, postman_logo, primary_button, status_pill, subtab_button, VectorIcon,
+    badge_pill, card_frame, compact_card_frame, emerald_button, method_badge, method_color,
+    openapi_logo, paint_icon, postman_logo, primary_button, status_pill, subtab_button,
+    VectorIcon,
 };
 use bapu_core::types::{
     ApiExample, AuthType, BodyType, HttpMethod, KeyValuePair, MultipartField,
@@ -19,6 +20,87 @@ const GRAPHQL_INTROSPECTION_QUERY: &str = r#"query IntrospectionQuery {
     }
   }
 }"#;
+
+
+/// Postman-style strip of currently open request tabs, shown above the request editor.
+/// Hidden entirely when there's only the one tab open, so the editor looks unchanged until
+/// the user actually has more than one request open at a time.
+fn render_open_tabs(app: &mut BapuApp, ui: &mut egui::Ui, pal: &crate::ui::theme::Palette) {
+    if app.open_tabs.len() <= 1 {
+        return;
+    }
+
+    let mut switch_to: Option<usize> = None;
+    let mut close_idx: Option<usize> = None;
+
+    egui::ScrollArea::horizontal()
+        .id_salt("api_open_tabs_scroll")
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                for (i, tab) in app.open_tabs.iter().enumerate() {
+                    let is_active = i == app.active_tab;
+                    let name = if tab.name.trim().is_empty() {
+                        "Untitled"
+                    } else {
+                        tab.name.as_str()
+                    };
+                    Frame::none()
+                        .fill(if is_active {
+                            pal.bg_card_hover
+                        } else {
+                            egui::Color32::TRANSPARENT
+                        })
+                        .stroke(if is_active {
+                            Stroke::new(1.0_f32, pal.accent_primary.gamma_multiply(0.6))
+                        } else {
+                            Stroke::NONE
+                        })
+                        .rounding(Rounding::same(6.0_f32))
+                        .inner_margin(Margin::symmetric(8.0_f32, 4.0_f32))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                method_badge(ui, tab.method);
+                                let label_resp = ui.add(
+                                    egui::Label::new(RichText::new(name).size(11.5).color(
+                                        if is_active {
+                                            pal.text_main
+                                        } else {
+                                            pal.text_muted
+                                        },
+                                    ))
+                                    .selectable(false)
+                                    .sense(egui::Sense::click()),
+                                );
+                                if label_resp.clicked() {
+                                    switch_to = Some(i);
+                                }
+                                if ui
+                                    .add(
+                                        egui::Button::new(
+                                            RichText::new("\u{d7}").size(12.0).color(pal.text_dim),
+                                        )
+                                        .frame(false)
+                                        .min_size(vec2(16.0, 16.0)),
+                                    )
+                                    .on_hover_text("Close tab")
+                                    .clicked()
+                                {
+                                    close_idx = Some(i);
+                                }
+                            });
+                        });
+                }
+            });
+        });
+
+    if let Some(i) = switch_to {
+        app.switch_to_tab(i);
+    }
+    if let Some(i) = close_idx {
+        app.close_tab(i);
+    }
+    ui.add_space(4.0);
+}
 
 pub fn render(app: &mut BapuApp, ui: &mut egui::Ui) {
     let pal = app.palette();
@@ -206,6 +288,8 @@ pub fn render(app: &mut BapuApp, ui: &mut egui::Ui) {
         app.io_modal_open = open;
     }
 
+    render_open_tabs(app, ui, &pal);
+
     // Top Request Bar Card
     compact_card_frame(&pal).show(ui, |ui| {
         ui.horizontal(|ui| {
@@ -335,7 +419,9 @@ pub fn render(app: &mut BapuApp, ui: &mut egui::Ui) {
                 )
                 .clicked()
                 {
-                    app.active_request = bapu_core::curl::parse_curl_command(&app.curl_import_text);
+                    app.open_request_tab(bapu_core::curl::parse_curl_command(
+                        &app.curl_import_text,
+                    ));
                     app.curl_import_open = false;
                 }
                 if ui.button("Cancel").clicked() {
