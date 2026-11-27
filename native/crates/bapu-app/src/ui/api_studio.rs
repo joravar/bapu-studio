@@ -143,6 +143,32 @@ pub fn render(app: &mut BapuApp, ui: &mut egui::Ui) {
                             Err(e) => app.io_modal_status = Some(format!("Postman error: {e}")),
                         }
                     }
+                    if ui
+                        .add_enabled(has_txt, egui::Button::new("Import Bapu Studio JSON"))
+                        .on_hover_text(
+                            "For a collection already in Bapu Studio's own format \
+                             (e.g. one generated or shared as a plain collection.json, \
+                             not Postman/OpenAPI/HAR).",
+                        )
+                        .clicked()
+                    {
+                        match bapu_core::collection_io::import_native_collection(&app.io_modal_text)
+                        {
+                            Ok(col) => {
+                                let msg = format!(
+                                    "Imported '{}' ({} requests).",
+                                    col.name,
+                                    col.requests.len()
+                                );
+                                app.collections.push(col);
+                                app.persist();
+                                app.io_modal_status = Some(msg);
+                            }
+                            Err(e) => {
+                                app.io_modal_status = Some(format!("Bapu Studio JSON error: {e}"))
+                            }
+                        }
+                    }
                     if ui.add_enabled(has_txt, egui::Button::new("Import HAR 1.2")).clicked() {
                         match bapu_core::collection_io::import_from_har(&app.io_modal_text) {
                             Ok(col) => {

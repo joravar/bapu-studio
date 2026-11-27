@@ -11,6 +11,23 @@ use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
+/// Imports a JSON file already in Bapu Studio's own native `Collection` schema
+/// (the same shape `storage::save_collections` writes to `collections.json`, and what
+/// `export_to_postman`'s sibling would produce for a native round-trip). Useful for
+/// hand-authored collections, or ones shared between users as a single file, rather than
+/// going through the Postman/OpenAPI/HAR interop importers above. Mints fresh IDs for the
+/// collection and every request so re-importing the same file twice (or importing a file
+/// whose IDs collide with an existing collection) never collides with what's already loaded.
+pub fn import_native_collection(raw_json: &str) -> Result<Collection> {
+    let mut col: Collection =
+        serde_json::from_str(raw_json).context("not a valid Bapu Studio collection JSON")?;
+    col.id = uuid::Uuid::new_v4().to_string();
+    for req in &mut col.requests {
+        req.id = uuid::Uuid::new_v4().to_string();
+    }
+    Ok(col)
+}
+
 pub fn export_to_postman(collection: &Collection) -> Result<String> {
     let items: Vec<Value> = collection
         .requests
